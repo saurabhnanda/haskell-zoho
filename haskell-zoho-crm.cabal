@@ -1,0 +1,36 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: d14b5612dd30b1212703bf755ddf1fa62f8b96b04684f9d59f82cdd5604f4266
+
+name:           haskell-zoho-crm
+version:        0.1.0.0
+category:       Web
+homepage:       https://github.com/saurabhnanda/haskell-zoho-crm#readme
+author:         Saurabh Nanda
+maintainer:     saurabhnanda@gmail.com
+copyright:      Saurabh Nanda
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+
+library
+  exposed-modules:
+      Main
+      Zoho.OAuth
+  other-modules:
+      Paths_haskell_zoho_crm
+  hs-source-dirs:
+      src
+  default-extensions: TemplateHaskell OverloadedStrings
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , hoauth2
+    , uri-bytestring
+  default-language: Haskell2010

@@ -1,0 +1,29 @@
+name:                haskell-zoho-crm
+version:             0.1.0.0
+#synopsis:
+#description:
+homepage:            https://github.com/saurabhnanda/haskell-zoho-crm#readme
+license:             BSD3
+author:              Saurabh Nanda
+maintainer:          saurabhnanda@gmail.com
+copyright:           Saurabh Nanda
+category:            Web
+extra-source-files:
+- README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - hoauth2
+  - uri-bytestring
+  - bytestring
+  - text
+  - string-conv
+
+default-extensions:
+  - TemplateHaskell
+  - OverloadedStrings
+
+library:
+  source-dirs:
+    - src
+    
