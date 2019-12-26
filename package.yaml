@@ -18,6 +18,10 @@ dependencies:
   - bytestring
   - text
   - string-conv
+  - http-client
+  - wreq
+  - lens
+  - aeson
 
 default-extensions:
   - TemplateHaskell
