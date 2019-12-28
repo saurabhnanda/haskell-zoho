@@ -13,6 +13,8 @@ import Data.ByteString as BS
 import Network.HTTP.Client (Manager, ManagerSettings(..), newManager)
 import Data.Text (Text)
 import Data.Time
+import qualified Data.Aeson.Types as Aeson
+import Control.Lens
 
 data Approval = Approval
   { apDelegate :: Bool -- delegate
@@ -48,19 +50,20 @@ data ContactFixedFields = ContactFixedFields
   --  , 
   } deriving (Show)
 
-data Contact = Contact
+data Contact a = Contact
   { contactVisitSummary :: VisitSummary
   , contactScoreSummary :: ScoreSummary
   , contactGoogleAdsInfo :: GoogleAdsInfo
   , contactSpecialFields :: ContactSpecialFields
   , contactFixedFields :: ContactFixedFields
+  , contactOtherFields :: a
   } deriving (Show)
 
 $(deriveJSON (Casing.aesonPrefix Casing.snakeCase) ''Approval)
 $(deriveJSON (Casing.aesonPrefix (('$':) . Casing.snakeCase)) ''ContactSpecialFields)
 $(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''ContactFixedFields)
 
-instance FromJSON Contact where
+instance (FromJSON a) => FromJSON (Contact a) where
   parseJSON = withObject "Exepcting a JSON object to parse into a Contact" $ \o -> do
     let x = Object o
     contactVisitSummary <- parseJSON x
@@ -68,10 +71,12 @@ instance FromJSON Contact where
     contactGoogleAdsInfo <- parseJSON x
     contactSpecialFields <- parseJSON x
     contactFixedFields  <- parseJSON x
+    contactOtherFields <- parseJSON x
     pure Contact{..}
 
-list :: ListOptions
+list :: (FromJSON a)
+     => ListOptions
      -> Manager
      -> AccessToken
-     -> IO (W.Response (Either String (PaginatedResponse "data" [Contact])))
+     -> IO (W.Response (Either String (PaginatedResponse "data" [Contact a])))
 list = R.list "Contacts"
