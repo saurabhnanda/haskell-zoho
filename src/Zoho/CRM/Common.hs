@@ -21,4 +21,15 @@ data VisitSummary = VisitSummary
   , vsDaysVisited :: Maybe Int
   } deriving (Show)
 
+data ScoreSummary = ScoreSummary
+  { ssScore :: Maybe Int
+  , ssPositiveScore :: Maybe Int
+  , ssNegativeScore :: Maybe Int
+  , ssTouchPointScore :: Maybe Int
+  , ssPositiveTouchPointScore :: Maybe Int
+  , ssNegativeTouchPointScore :: Maybe Int
+  } deriving (Eq, Show)
+
 $(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''VisitSummary)
+$(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''ScoreSummary)
+

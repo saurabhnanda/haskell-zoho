@@ -54,12 +54,12 @@ defaultListOptions = ListOptions
   , optTerritory = Nothing
   }
 
-list :: BS.ByteString
+list :: (FromJSON a)
+     => BS.ByteString
      -> ListOptions
      -> Manager
      -> AccessToken
---     -> IO (W.Response (Either String (PaginatedResponse "data" BS.ByteString)))
-     -> IO (W.Response (Either String (PaginatedResponse "data" [VisitSummary])))
+     -> IO (W.Response (Either String (PaginatedResponse "data" a)))
 list modApiName listopts mgr tkn = do
   r <- ZO.authGetJSON (qparams listopts) (apiEndpointStr modApiName) mgr tkn
   pure $ fmap eitherDecode r

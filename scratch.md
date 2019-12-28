@@ -39,7 +39,7 @@ Search partner network
 Ad group name
 Cost per click
 
-## Visit summary
+## DONE - Visit summary
 
 First visit
 First page visited

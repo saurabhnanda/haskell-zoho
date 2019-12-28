@@ -12,6 +12,7 @@ import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Data.ByteString as BS
 import Network.Wreq as W
 import Control.Lens
+import Zoho.CRM.Contacts as Contacts
 
 zohoOAuth :: OAuth2
 zohoOAuth = mkOAuth hostUS (ClientId "1000.PCRP10N4ZKXC7F029BTTP6UT594BIH") (ClientSecret "67d211c3cb5c31df1a1899462514fba3abe152f6cb") ([uri|http://master.hetzner.vacationlabs.com/lambda/oauth-redirect|])
@@ -22,7 +23,7 @@ zohoManager = newManager $ tlsManagerSettings{managerModifyRequest=logRequest}
 test = do
   let rtkn = RefreshToken "1000.7950f276ab5889010ba61d5074835d16.84a6e76f73e09303f32e408c5ccb298f"
   mgr <- zohoManager
-  x <- withAccessToken mgr zohoOAuth rtkn Nothing (list "Contacts" defaultListOptions{optPerPage=(Just 10)})
+  x <- withAccessToken mgr zohoOAuth rtkn Nothing (Contacts.list defaultListOptions{optPerPage=(Just 10)})
   pure $ x ^? _Right . _1 . W.responseBody
   -- pure x
   -- refreshAccessToken mgr oa rtkn
