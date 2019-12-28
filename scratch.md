@@ -21,7 +21,7 @@ Created_By
 Record_Image?
 Tag
 
-## Google adwords information
+## DONE - Google adwords information
 
 GCLID
 Click type
