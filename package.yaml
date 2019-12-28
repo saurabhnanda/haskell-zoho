@@ -19,13 +19,24 @@ dependencies:
   - text
   - string-conv
   - http-client
+  - http-client-tls
+  - http-types
   - wreq
   - lens
   - aeson
+  - aeson-casing
+  - time
 
 default-extensions:
   - TemplateHaskell
   - OverloadedStrings
+  - ScopedTypeVariables
+  - LambdaCase
+  - NamedFieldPuns
+  - RecordWildCards
+  - DataKinds
+  - FlexibleInstances
+  - QuasiQuotes
 
 library:
   source-dirs:
