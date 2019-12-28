@@ -15,7 +15,7 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Control.Lens
 import Zoho.CRM.Common
-
+import Data.Time
 
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint modApiName  = ZO.mkApiEndpoint $ "/crm/v2/" <> modApiName
@@ -39,6 +39,7 @@ data ListOptions = ListOptions
   , optPerPage :: Maybe Int
   , optCustomViewId :: Maybe Int
   , optTerritory :: Maybe (Int, Bool)
+  , optModifiedAfter :: Maybe UTCTime
   } deriving (Eq, Show)
 
 defaultListOptions :: ListOptions
@@ -52,6 +53,7 @@ defaultListOptions = ListOptions
   , optPerPage = Nothing
   , optCustomViewId = Nothing
   , optTerritory = Nothing
+  , optModifiedAfter = Nothing
   }
 
 list :: (FromJSON a)
@@ -65,11 +67,16 @@ list modApiName listopts mgr tkn = do
   pure $ fmap eitherDecode r
   -- pure r
   where
-    applyOptional k mVal opt = case mVal of
+    applyOptionalParam k mVal opt = case mVal of
       Nothing -> opt
       Just val -> opt & (param k) .~ [val]
+    applyOptionalHeader h mVal opt = case mVal of
+      Nothing -> opt
+      Just val -> opt & (header h) .~ [val]
+    iso8601 = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z"
     qparams ListOptions{..} =
-      applyOptional "fields" (fmap (T.intercalate ",") optFields) $
-      applyOptional "per_page" (fmap (toS . show) optPerPage) $
+      applyOptionalHeader "If-Modified-Since" (fmap (toS . iso8601) optModifiedAfter) $
+      applyOptionalParam "fields" (fmap (T.intercalate ",") optFields) $
+      applyOptionalParam "per_page" (fmap (toS . show) optPerPage) $
       W.defaults
 
