@@ -80,3 +80,10 @@ list :: (FromJSON a)
      -> AccessToken
      -> IO (W.Response (Either String (PaginatedResponse "data" [Contact a])))
 list = R.list "Contacts"
+
+getSpecific :: (FromJSON a)
+            => Text
+            -> Manager
+            -> AccessToken
+            -> IO (W.Response (Either String (Maybe (Contact a))))
+getSpecific = R.getSpecificRecord "Contacts"

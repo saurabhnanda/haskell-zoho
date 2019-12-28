@@ -16,6 +16,7 @@ import Data.Text (Text)
 import Control.Lens
 import Zoho.CRM.Common
 import Data.Time
+import Data.Maybe (listToMaybe)
 
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint modApiName  = ZO.mkApiEndpoint $ "/crm/v2/" <> modApiName
@@ -80,3 +81,19 @@ list modApiName listopts mgr tkn = do
       applyOptionalParam "per_page" (fmap (toS . show) optPerPage) $
       W.defaults
 
+getSpecificRecord :: forall a . (FromJSON a)
+                  => BS.ByteString
+                  -> Text
+                  -> Manager
+                  -> AccessToken
+                  -> IO (W.Response (Either String (Maybe a)))
+getSpecificRecord modApiName recordId mgr tkn = do
+  r <- ZO.authGetJSON W.defaults (apiEndpointStr modApiName <> "/" <> toS recordId) mgr tkn
+  pure $ fmap parseResonse r
+  where
+    parseResonse r =
+      if r == mempty
+      then Right Nothing
+      else case (eitherDecode r :: Either String (ResponseWrapper "data" [a])) of
+        Left e -> Left e
+        Right x -> Right $ listToMaybe $ unwrapResponse x

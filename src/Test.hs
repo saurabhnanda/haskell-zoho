@@ -4,12 +4,13 @@ import Zoho.Types
 import Network.OAuth.OAuth2 as O
 import Zoho.OAuth as ZO
 import Data.String.Conv
-import Zoho.CRM.Records
+import Zoho.CRM.Records as R
 import URI.ByteString
 import URI.ByteString.QQ
 import Network.HTTP.Client (Manager, ManagerSettings(..), newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Data.ByteString as BS
+import Data.ByteString.Lazy as BSL
 import Network.Wreq as W
 import Control.Lens
 import Zoho.CRM.Contacts as Contacts
@@ -22,12 +23,16 @@ zohoOAuth = mkOAuth hostUS (ClientId "1000.PCRP10N4ZKXC7F029BTTP6UT594BIH") (Cli
 zohoManager :: IO Manager
 zohoManager = newManager $ tlsManagerSettings{managerModifyRequest=logRequest}
 
-test :: IO (Maybe (Either String (PaginatedResponse "data" [Contact Aeson.Value])))
+-- test :: IO (Maybe (Either String (PaginatedResponse "data" [Contact Aeson.Value])))
+-- test :: IO (W.Response BSL.ByteString)
+-- test :: IO ()
+test :: IO (Maybe (Either String (Maybe (Contact Aeson.Value))))
 test = do
   let rtkn = RefreshToken "1000.7950f276ab5889010ba61d5074835d16.84a6e76f73e09303f32e408c5ccb298f"
   mgr <- zohoManager
   t <- getCurrentTime
-  x <- withAccessToken mgr zohoOAuth rtkn Nothing (Contacts.list defaultListOptions{optPerPage=(Just 200), optModifiedAfter=(Just t{utctDayTime=75600})})
+  -- x <- withAccessToken mgr zohoOAuth rtkn Nothing (Contacts.list defaultListOptions{optPerPage=(Just 200), optModifiedAfter=(Just t{utctDayTime=75600})})
+  x <- withAccessToken mgr zohoOAuth rtkn Nothing (R.getSpecificRecord "Contacts" "3064310000023326001")
   pure $ x ^? _Right . _1 . W.responseBody
   -- pure x
   -- refreshAccessToken mgr oa rtkn
