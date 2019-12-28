@@ -28,8 +28,10 @@ Click type
 Ad network
 Ad campaign name
 Ad
+Ad Group Name
 Ad click date
 Cost per conversion
+Cost per click
 Conversion export status
 Conversion exported on
 Reason for Conversion failure
@@ -37,7 +39,6 @@ Keyword
 Device type
 Search partner network
 Ad group name
-Cost per click
 
 ## DONE - Visit summary
 
@@ -51,7 +52,7 @@ Average time spent
 Days visited
 
 
-## Scoring rules
+## DONE - Scoring rules
 Score
 Positive score
 Negative score

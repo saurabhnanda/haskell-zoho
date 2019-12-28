@@ -15,12 +15,15 @@ import Network.HTTP.Client (Manager, ManagerSettings(..), newManager)
 data Contact = Contact
   { contactVisitSummary :: VisitSummary
   , contactScoreSummary :: ScoreSummary
+  , contactGoogleAdsInfo :: GoogleAdsInfo
   } deriving (Show)
 
 instance FromJSON Contact where
   parseJSON = withObject "Exepcting a JSON object to parse into a Contact" $ \o -> do
-    contactVisitSummary <- parseJSON (Object o)
-    contactScoreSummary <- parseJSON (Object o)
+    let x = Object o
+    contactVisitSummary <- parseJSON x
+    contactScoreSummary <- parseJSON x
+    contactGoogleAdsInfo <- parseJSON x
     pure Contact{..}
 
 list :: ListOptions

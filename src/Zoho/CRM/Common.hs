@@ -9,6 +9,7 @@ import Data.Aeson as Aeson
 import Data.Aeson.TH
 import Data.Aeson.Casing as Casing
 import Data.Text as Text
+import Zoho.CRM.Common.Utils (googleAdsJsonOptions)
 
 data VisitSummary = VisitSummary
   { vsFirstVisitedTime :: Maybe ZonedTime
@@ -30,6 +31,24 @@ data ScoreSummary = ScoreSummary
   , ssNegativeTouchPointScore :: Maybe Int
   } deriving (Eq, Show)
 
+data GoogleAdsInfo = GoogleAdsInfo
+  { gadsGCLID :: Maybe Text
+  , gadsClickType :: Maybe Text
+  , gadsAdNetwork :: Maybe Text
+  , gadsAdCampaignName :: Maybe Text
+  , gadsAd :: Maybe Text
+  , gadsAdGroupName :: Maybe Text
+  , gadsClickDate :: Maybe Text -- TODO: This type needs to change!
+  , gadsCostPerClick :: Maybe Float
+  , gadsCostPerConversion :: Maybe Float
+  , gadsConversionExportStatus :: Maybe Text
+  , gadsConversionExportedOn :: Maybe Text -- TODO : change this type
+  , gadsReasonForConversionFailure :: Maybe Text
+  , gadsKeyword :: Maybe Text
+  , gadsDeviceType :: Maybe Text
+  , gadsSearchPartnerNetwork :: Maybe Text
+  } deriving (Show)
+
 $(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''VisitSummary)
 $(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''ScoreSummary)
-
+$(deriveJSON googleAdsJsonOptions ''GoogleAdsInfo)
