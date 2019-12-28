@@ -12,6 +12,7 @@ import Data.Aeson.TH
 import Data.ByteString as BS
 import Network.HTTP.Client (Manager, ManagerSettings(..), newManager)
 import Data.Text (Text)
+import Data.Time
 
 data Approval = Approval
   { apDelegate :: Bool -- delegate
@@ -33,15 +34,31 @@ data ContactSpecialFields = ContactSpecialFields
   -- , csvReview :: Maybe _ -- $review
   } deriving (Eq, Show)
 
+data ContactFixedFields = ContactFixedFields
+  { cffLastName :: Maybe Text
+  , cffOwner :: Maybe (Reference "name")
+  , cffModifiedBy :: Maybe (Reference "name")
+  , cffModifiedTime :: Maybe ZonedTime
+  , cffCreatedTime :: Maybe ZonedTime
+  , cffCreatedBy :: Maybe (Reference "name")
+  , cffLeadSource :: Maybe Text
+  , cffTag :: Maybe [Reference "name"]
+  , cffLastActivityTime :: Maybe ZonedTime
+  -- TODO: Figure out what is the structure of record image
+  --  , 
+  } deriving (Show)
+
 data Contact = Contact
   { contactVisitSummary :: VisitSummary
   , contactScoreSummary :: ScoreSummary
   , contactGoogleAdsInfo :: GoogleAdsInfo
   , contactSpecialFields :: ContactSpecialFields
+  , contactFixedFields :: ContactFixedFields
   } deriving (Show)
 
 $(deriveJSON (Casing.aesonPrefix Casing.snakeCase) ''Approval)
 $(deriveJSON (Casing.aesonPrefix (('$':) . Casing.snakeCase)) ''ContactSpecialFields)
+$(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''ContactFixedFields)
 
 instance FromJSON Contact where
   parseJSON = withObject "Exepcting a JSON object to parse into a Contact" $ \o -> do
@@ -50,8 +67,8 @@ instance FromJSON Contact where
     contactScoreSummary <- parseJSON x
     contactGoogleAdsInfo <- parseJSON x
     contactSpecialFields <- parseJSON x
+    contactFixedFields  <- parseJSON x
     pure Contact{..}
-
 
 list :: ListOptions
      -> Manager

@@ -1,7 +1,6 @@
 # Internal fields
 
 $currency_symbol
-Last_Activity_Time
 $state
 $process_flow
 $approved
@@ -17,9 +16,9 @@ Contact owner
 Modified by?
 Created by?
 Lead source
-Created_By
 Record_Image?
 Tag
+Last_Activity_Time
 
 ## DONE - Google adwords information
 
