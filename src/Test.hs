@@ -16,6 +16,7 @@ import Control.Lens
 import Zoho.CRM.Contacts as Contacts
 import Data.Aeson as Aeson
 import Data.Time
+import Data.Text as Text
 
 zohoOAuth :: OAuth2
 zohoOAuth = mkOAuth hostUS (ClientId "1000.PCRP10N4ZKXC7F029BTTP6UT594BIH") (ClientSecret "67d211c3cb5c31df1a1899462514fba3abe152f6cb") ([uri|http://master.hetzner.vacationlabs.com/lambda/oauth-redirect|])
@@ -26,15 +27,19 @@ zohoManager = newManager $ tlsManagerSettings{managerModifyRequest=logRequest}
 -- test :: IO (Maybe (Either String (PaginatedResponse "data" [Contact Aeson.Value])))
 -- test :: IO (W.Response BSL.ByteString)
 -- test :: IO ()
-test :: IO (Maybe (Either String (Maybe (Contact Aeson.Value))))
+-- test :: IO (Maybe (Either String (Maybe (Contact Aeson.Value))))
 test = do
   let rtkn = RefreshToken "1000.7950f276ab5889010ba61d5074835d16.84a6e76f73e09303f32e408c5ccb298f"
   mgr <- zohoManager
   t <- getCurrentTime
   -- x <- withAccessToken mgr zohoOAuth rtkn Nothing (Contacts.list defaultListOptions{optPerPage=(Just 200), optModifiedAfter=(Just t{utctDayTime=75600})})
-  x <- withAccessToken mgr zohoOAuth rtkn Nothing (R.getSpecificRecord "Contacts" "3064310000023326001")
-  pure $ x ^? _Right . _1 . W.responseBody
-  -- pure x
+  -- x <- withAccessToken mgr zohoOAuth rtkn Nothing (R.getSpecificRecord "Contacts" "3064310000023326001")
+  let c :: Contact () = emptyContact
+                        & fixedFields ?~ emptyContactFixedFields
+                        & fixedFields._Just.lastName ?~ ("Nanda" :: Text)
+  x <- withAccessToken mgr zohoOAuth rtkn Nothing (R.insert "Contacts" [c])
+  -- pure $ x ^? _Right . _1 . W.responseBody
+  pure x
   -- refreshAccessToken mgr oa rtkn
 
 test2 = do
@@ -43,3 +48,14 @@ test2 = do
   t <- Prelude.getLine
   mgr <- zohoManager
   O.fetchAccessToken2 mgr zohoOAuth (ExchangeToken $ toS t)
+
+-- contact :: Contact ()
+-- contact = Contact
+--   { contactVisitSummary = Nothing
+--   , contactScoreSummary = Nothing
+--   , contactGoogleAdsInfo = Nothing
+--   , contactSpecialFields = Nothing
+--   , contactFixedFields = ContactFixedFields
+--     { cffLastName = "Something"
+--     }
+--   }

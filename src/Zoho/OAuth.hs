@@ -20,6 +20,8 @@ import Network.HTTP.Types as HT
 import Network.Wreq as W
 import Control.Lens
 import Data.Aeson (FromJSON)
+import Network.Wreq.Types (Postable)
+
 
 mkEndpoint :: Host -> BS.ByteString -> URI
 mkEndpoint h p = URI
@@ -120,6 +122,15 @@ authGetJSON :: Options
             -> AccessToken
             -> IO (Response BSL.ByteString)
 authGetJSON opt uri mgr tkn = W.getWith (addAuthHeader mgr tkn opt) uri
+
+authPost :: (Postable a)
+         => Options
+         -> String
+         -> a
+         -> Manager
+         -> AccessToken
+         -> IO (Response BSL.ByteString)
+authPost opt uri pload mgr tkn = W.postWith (addAuthHeader mgr tkn opt) uri pload
 
 testToken :: RefreshToken
 testToken = RefreshToken "1000.d172fccaf6d7e1e08ec40af3cbf05af6.fa961eedf1fa4b2cfbe822439b376bb0"

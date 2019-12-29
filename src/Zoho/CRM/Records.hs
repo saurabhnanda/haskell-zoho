@@ -97,3 +97,21 @@ getSpecificRecord modApiName recordId mgr tkn = do
       else case (eitherDecode r :: Either String (ResponseWrapper "data" [a])) of
         Left e -> Left e
         Right x -> Right $ listToMaybe $ unwrapResponse x
+
+insert :: forall a . (ToJSON a)
+       => BS.ByteString
+       -> [a]
+       -> Manager
+       -> AccessToken
+       -> IO (W.Response (Either String [Aeson.Value]))
+insert modApiName records mgr tkn = do
+  r <- ZO.authPost W.defaults (apiEndpointStr modApiName) (toJSON pload) mgr tkn
+  pure $ fmap parseResponse r
+  where
+    pload :: ResponseWrapper "data" [a]
+    pload = ResponseWrapper records
+
+    parseResponse bsl =
+      case eitherDecode bsl :: Either String (ResponseWrapper "data" [Aeson.Value]) of
+        Left e -> Left e
+        Right r -> Right $ unwrapResponse r

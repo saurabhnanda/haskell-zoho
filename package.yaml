@@ -26,6 +26,7 @@ dependencies:
   - aeson
   - aeson-casing
   - time
+  - generic-deriving
 
 default-extensions:
   - TemplateHaskell
@@ -37,6 +38,10 @@ default-extensions:
   - DataKinds
   - FlexibleInstances
   - QuasiQuotes
+  - DeriveGeneric
+  - MultiParamTypeClasses
+  - FunctionalDependencies
+  - FlexibleContexts
 
 library:
   source-dirs:

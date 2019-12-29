@@ -19,6 +19,11 @@ instance (FromJSON a, KnownSymbol s) => FromJSON (ResponseWrapper s a) where
     r <- o .: (toS $ symbolVal (Proxy :: Proxy s))
     pure $ ResponseWrapper r
 
+instance (ToJSON a, KnownSymbol s) => ToJSON (ResponseWrapper s a) where
+  toJSON (ResponseWrapper v) =
+    let k = symbolVal (Proxy :: Proxy s)
+    in object [ (toS k) Aeson..= (toJSON v) ]
+
 data PaginatedResponse (s :: Symbol) a = PaginatedResponse
   { pageData :: a
   , pageRecordsPerPage :: Int
@@ -83,3 +88,10 @@ pascalSnakeCase s = go False s
                             else if isPrevLower
                                  then '_':x:(go False xs)
                                  else x:(go False xs)
+
+
+class EmptyZohoStructure a where
+  emptyZohoStructure :: a
+
+  -- default emptyZohoStructure :: (Generic a, (GEmptyZohoStructure (Rep a))) => a
+  -- emptyZohoStructure = GHC.Generics.to gEmptyZohoStructure

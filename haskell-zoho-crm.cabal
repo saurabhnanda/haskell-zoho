@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2bd2a9bf1e9b9bbc407e6e4bc664132a354c4f776e86a4e4a504c254599b6120
+-- hash: adb2a86e0a4c0a6e3490cd46217a61c7fe5e8ed3abf4ef781c21c5d5ef19c1a4
 
 name:           haskell-zoho-crm
 version:        0.1.0.0
@@ -23,6 +23,8 @@ library
   exposed-modules:
       Main
       Test
+      Zoho.CRM.Common
+      Zoho.CRM.Common.Utils
       Zoho.CRM.Contacts
       Zoho.CRM.Modules
       Zoho.CRM.Records
@@ -32,12 +34,13 @@ library
       Paths_haskell_zoho_crm
   hs-source-dirs:
       src
-  default-extensions: TemplateHaskell OverloadedStrings ScopedTypeVariables LambdaCase NamedFieldPuns RecordWildCards DataKinds FlexibleInstances QuasiQuotes
+  default-extensions: TemplateHaskell OverloadedStrings ScopedTypeVariables LambdaCase NamedFieldPuns RecordWildCards DataKinds FlexibleInstances QuasiQuotes DeriveGeneric MultiParamTypeClasses FunctionalDependencies FlexibleContexts
   build-depends:
       aeson
     , aeson-casing
     , base >=4.7 && <5
     , bytestring
+    , generic-deriving
     , hoauth2
     , http-client
     , http-client-tls
