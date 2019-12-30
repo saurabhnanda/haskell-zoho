@@ -15,14 +15,26 @@ import Network.Wreq as W
 import Control.Lens
 import Zoho.CRM.Contacts as Contacts
 import Data.Aeson as Aeson
+import Data.Aeson.Casing as Casing
 import Data.Time
 import Data.Text as Text
+import Data.Aeson.TH
+import GHC.Generics
+import Zoho.ZohoM as ZohoM
 
 zohoOAuth :: OAuth2
 zohoOAuth = mkOAuth hostUS (ClientId "1000.PCRP10N4ZKXC7F029BTTP6UT594BIH") (ClientSecret "67d211c3cb5c31df1a1899462514fba3abe152f6cb") ([uri|http://master.hetzner.vacationlabs.com/lambda/oauth-redirect|])
 
 zohoManager :: IO Manager
 zohoManager = newManager $ tlsManagerSettings{managerModifyRequest=logRequest}
+
+
+data MyFields = MyFields
+  { mfLeadStage :: Maybe Text
+  } deriving (Eq, Show, Generic)
+
+$(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''MyFields)
+$(makeLensesWith abbreviatedFields ''MyFields)
 
 -- test :: IO (Maybe (Either String (PaginatedResponse "data" [Contact Aeson.Value])))
 -- test :: IO (W.Response BSL.ByteString)
@@ -34,9 +46,10 @@ test = do
   t <- getCurrentTime
   -- x <- withAccessToken mgr zohoOAuth rtkn Nothing (Contacts.list defaultListOptions{optPerPage=(Just 200), optModifiedAfter=(Just t{utctDayTime=75600})})
   -- x <- withAccessToken mgr zohoOAuth rtkn Nothing (R.getSpecificRecord "Contacts" "3064310000023326001")
-  let c :: Contact () = emptyContact
-                        & fixedFields ?~ emptyContactFixedFields
-                        & fixedFields._Just.lastName ?~ ("Nanda" :: Text)
+  let c :: Contact MyFields = emptyContact
+        & fixedFields ?~ emptyContactFixedFields
+        & fixedFields._Just.lastName ?~ ("Nanda" :: Text)
+        & otherFields ?~ (MyFields {mfLeadStage = Just "Not Contacted"})
   x <- withAccessToken mgr zohoOAuth rtkn Nothing (R.insert "Contacts" [c])
   -- pure $ x ^? _Right . _1 . W.responseBody
   pure x
@@ -59,3 +72,13 @@ test2 = do
 --     { cffLastName = "Something"
 --     }
 --   }
+
+test3 :: IO (AccessToken, RefreshToken)
+test3 = do
+  let rtkn = RefreshToken "1000.7950f276ab5889010ba61d5074835d16.84a6e76f73e09303f32e408c5ccb298f"
+  mgr <- zohoManager
+  runZohoT mgr  zohoOAuth rtkn Nothing $ do
+    _ <- ZohoM.refreshAccessToken
+    r <- getRefreshToken
+    a <- getAccessToken
+    pure (a, r)

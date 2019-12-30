@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: adb2a86e0a4c0a6e3490cd46217a61c7fe5e8ed3abf4ef781c21c5d5ef19c1a4
+-- hash: 8be5a7b3fad402fb0af13ef39f3ee1b35cb4fe44b5a131ddd87f9742e91aa5d0
 
 name:           haskell-zoho-crm
 version:        0.1.0.0
@@ -40,15 +40,18 @@ library
     , aeson-casing
     , base >=4.7 && <5
     , bytestring
+    , containers
     , generic-deriving
     , hoauth2
     , http-client
     , http-client-tls
     , http-types
     , lens
+    , mtl
     , string-conv
     , text
     , time
+    , unordered-containers
     , uri-bytestring
     , wreq
   default-language: Haskell2010

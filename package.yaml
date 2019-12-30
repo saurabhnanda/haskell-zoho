@@ -27,6 +27,9 @@ dependencies:
   - aeson-casing
   - time
   - generic-deriving
+  - mtl
+  - containers
+  - unordered-containers
 
 default-extensions:
   - TemplateHaskell

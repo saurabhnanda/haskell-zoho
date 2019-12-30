@@ -22,7 +22,6 @@ import Control.Lens
 import Data.Aeson (FromJSON)
 import Network.Wreq.Types (Postable)
 
-
 mkEndpoint :: Host -> BS.ByteString -> URI
 mkEndpoint h p = URI
   { uriScheme = Scheme "https"
