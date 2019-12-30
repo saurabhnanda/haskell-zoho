@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8be5a7b3fad402fb0af13ef39f3ee1b35cb4fe44b5a131ddd87f9742e91aa5d0
+-- hash: bd2652b8e1ff25809dd3c405786b1641260afed6648c8994051ecc8b9a6f9a6d
 
 name:           haskell-zoho-crm
 version:        0.1.0.0
@@ -30,6 +30,7 @@ library
       Zoho.CRM.Records
       Zoho.OAuth
       Zoho.Types
+      Zoho.ZohoM
   other-modules:
       Paths_haskell_zoho_crm
   hs-source-dirs:
@@ -41,6 +42,7 @@ library
     , base >=4.7 && <5
     , bytestring
     , containers
+    , exceptions
     , generic-deriving
     , hoauth2
     , http-client
@@ -48,6 +50,7 @@ library
     , http-types
     , lens
     , mtl
+    , retry
     , string-conv
     , text
     , time

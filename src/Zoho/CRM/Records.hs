@@ -17,6 +17,7 @@ import Control.Lens
 import Zoho.CRM.Common
 import Data.Time
 import Data.Maybe (listToMaybe)
+import Zoho.ZohoM as ZM
 
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint modApiName  = ZO.mkApiEndpoint $ "/crm/v2/" <> modApiName
@@ -57,16 +58,22 @@ defaultListOptions = ListOptions
   , optModifiedAfter = Nothing
   }
 
-list :: (FromJSON a)
+
+list :: (FromJSON a, HasZoho m)
      => BS.ByteString
      -> ListOptions
-     -> Manager
-     -> AccessToken
-     -> IO (W.Response (Either String (PaginatedResponse "data" a)))
-list modApiName listopts mgr tkn = do
+     -> m (Either Error (PaginatedResponse "data" a))
+list modApiName listopts = runRequest (listResponse modApiName listopts)
+
+listResponse :: BS.ByteString
+             -> ListOptions
+             -> Manager
+             -> AccessToken
+             -> IO (W.Response BSL.ByteString)
+listResponse modApiName listopts mgr tkn = do
   r <- ZO.authGetJSON (qparams listopts) (apiEndpointStr modApiName) mgr tkn
-  pure $ fmap eitherDecode r
-  -- pure r
+  -- pure $ fmap eitherDecode r
+  pure r
   where
     applyOptionalParam k mVal opt = case mVal of
       Nothing -> opt

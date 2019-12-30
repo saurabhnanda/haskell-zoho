@@ -8,9 +8,21 @@ import Data.Proxy
 import Data.String.Conv
 import Data.Aeson as Aeson
 import Data.Text
-import Data.Aeson.Casing
+import Data.Aeson.Casing as Casing
 import Data.List as DL
 import Data.Char as Char
+import Network.HTTP.Client (HttpException)
+import GHC.Generics
+import Network.Wreq as W hiding (Proxy)
+import Network.Wreq.Types as W (ResponseChecker)
+import Network.HTTP.Client as HC (Request, Response, brConsume, HttpException(..), HttpExceptionContent(..))
+import Debug.Trace
+import Control.Lens ((^.))
+import Control.Exception (throwIO, Exception)
+import Data.Functor (void)
+import Data.ByteString.Lazy as BSL
+import Network.OAuth.OAuth2 (OAuth2Error)
+import qualified Network.OAuth.OAuth2.TokenRequest as TokenRequest (Errors)
 
 data ResponseWrapper (s :: Symbol) a = ResponseWrapper { unwrapResponse :: a } deriving (Eq, Show)
 
@@ -95,3 +107,55 @@ class EmptyZohoStructure a where
 
   -- default emptyZohoStructure :: (Generic a, (GEmptyZohoStructure (Rep a))) => a
   -- emptyZohoStructure = GHC.Generics.to gEmptyZohoStructure
+
+data Error = HTTPError !HttpException
+           | ParseError !String !BSL.ByteString
+           | TokenError (OAuth2Error TokenRequest.Errors)
+           | OtherError !Aeson.Value
+           deriving (Show)
+
+instance Exception Error
+
+data ZohoErrorCode = ZErrInvalidToken
+                   | ZErrOther !Text
+                   deriving (Eq, Show, Generic, Ord)
+
+instance FromJSON ZohoErrorCode where
+  parseJSON = withText "Expecting text to parse into ZohoErrorCode" $ \t -> pure $ case t of
+    "INVALID_TOKEN" -> ZErrInvalidToken
+    _ -> ZErrOther t
+
+data ZohoStatusCode = ZStatusError
+                    | ZStatusOther !Text
+                    deriving (Eq, Show, Generic, Ord)
+
+instance FromJSON ZohoStatusCode where
+  parseJSON = withText "Expecting text to parse into ZohoStatusCode" $ \t -> pure $ case t of
+    "error" -> ZStatusError
+    _ -> ZStatusOther t
+
+
+data ZohoError = ZohoError
+  { zerrCode :: !ZohoErrorCode
+  , zerrDetails :: !Aeson.Value
+  , zerrMessage :: !Text
+  , zerrStatus :: !ZohoStatusCode
+  } deriving (Eq, Show, Generic)
+
+instance FromJSON ZohoError where
+  parseJSON = genericParseJSON (Casing.aesonPrefix snakeCase)
+
+-- $(deriveJSON  ''ZohoErrro)
+
+
+zohoResponseChecker :: W.ResponseChecker -- type ResponseChecker = Request -> Response BodyReader -> IO ()
+zohoResponseChecker req res = do
+  case res ^. W.responseStatus . W.statusCode of
+    200 -> pure ()
+    401 -> pure ()
+    _ -> do
+      bs <- HC.brConsume $ res ^. W.responseBody
+      throwIO $ HttpExceptionRequest req $ StatusCodeException (void res) (mconcat bs)
+
+data ZohoRetriableException = ZohoRetriableException deriving (Eq, Show)
+instance Exception ZohoRetriableException

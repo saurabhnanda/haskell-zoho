@@ -30,6 +30,8 @@ dependencies:
   - mtl
   - containers
   - unordered-containers
+  - retry
+  - exceptions
 
 default-extensions:
   - TemplateHaskell

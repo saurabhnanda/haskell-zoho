@@ -21,6 +21,8 @@ import Network.Wreq as W
 import Control.Lens
 import Data.Aeson (FromJSON)
 import Network.Wreq.Types (Postable)
+import Zoho.Types (zohoResponseChecker)
+
 
 mkEndpoint :: Host -> BS.ByteString -> URI
 mkEndpoint h p = URI
@@ -113,6 +115,7 @@ addAuthHeader :: Manager -> AccessToken -> Options -> Options
 addAuthHeader mgr (AccessToken tkn) opt = opt
   & (header "Authorization") .~ ["Zoho-oauthtoken " <> toS tkn]
   & W.manager .~ (Right mgr)
+  & W.checkResponse .~ (Just zohoResponseChecker)
 
 
 authGetJSON :: Options

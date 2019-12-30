@@ -20,6 +20,7 @@ import qualified Data.Aeson.Types as Aeson
 import Control.Lens
 import GHC.Generics
 import Control.Lens
+import Data.Aeson.Types as Aeson (Parser)
 
 data Approval = Approval
   { apDelegate :: Maybe Bool -- delegate
@@ -148,16 +149,25 @@ $(deriveJSON (Casing.aesonPrefix Casing.snakeCase) ''Approval)
 $(deriveJSON (Casing.aesonPrefix (('$':) . Casing.snakeCase)) ''ContactSpecialFields)
 $(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''ContactFixedFields)
 
+contactParser :: (Aeson.Value -> Parser (Maybe a)) -> Aeson.Value -> Parser (Contact a)
+contactParser otherParser o = do
+  contactVisitSummary <- parseJSON o
+  contactScoreSummary <- parseJSON o
+  contactGoogleAdsInfo <- parseJSON o
+  contactSpecialFields <- parseJSON o
+  contactFixedFields  <- parseJSON o
+  contactOtherFields <- otherParser o
+  pure Contact{..}
+
+instance {-# OVERLAPS #-} FromJSON (Contact ()) where
+  parseJSON = withObject "Exepcting a JSON object to parse into a Contact" $ \o -> do
+    let x = Object o
+    contactParser (const $ pure Nothing) x
+
 instance (FromJSON a) => FromJSON (Contact a) where
   parseJSON = withObject "Exepcting a JSON object to parse into a Contact" $ \o -> do
     let x = Object o
-    contactVisitSummary <- parseJSON x
-    contactScoreSummary <- parseJSON x
-    contactGoogleAdsInfo <- parseJSON x
-    contactSpecialFields <- parseJSON x
-    contactFixedFields  <- parseJSON x
-    contactOtherFields <- parseJSON x
-    pure Contact{..}
+    contactParser parseJSON x
 
 instance (ToJSON a) => ToJSON (Contact a) where
   toJSON Contact{..} =
@@ -173,19 +183,19 @@ instance (ToJSON a) => ToJSON (Contact a) where
       mergeObject Aeson.Null Aeson.Null = Aeson.Null
       mergeObject x y = Prelude.error $  "unexpected " <> "\n" <> show x  <> "\n" <> show y
 
-list :: (FromJSON a)
-     => ListOptions
-     -> Manager
-     -> AccessToken
-     -> IO (W.Response (Either String (PaginatedResponse "data" [Contact a])))
-list = R.list "Contacts"
+-- list :: (FromJSON a)
+--      => ListOptions
+--      -> Manager
+--      -> AccessToken
+--      -> IO (W.Response (Either String (PaginatedResponse "data" [Contact a])))
+-- list = R.list "Contacts"
 
-getSpecific :: (FromJSON a)
-            => Text
-            -> Manager
-            -> AccessToken
-            -> IO (W.Response (Either String (Maybe (Contact a))))
-getSpecific = R.getSpecificRecord "Contacts"
+-- getSpecific :: (FromJSON a)
+--             => Text
+--             -> Manager
+--             -> AccessToken
+--             -> IO (W.Response (Either String (Maybe (Contact a))))
+-- getSpecific = R.getSpecificRecord "Contacts"
 
 -- insert :: (ToJSON a)
 --        => [Contact a]

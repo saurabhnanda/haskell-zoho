@@ -73,12 +73,13 @@ test2 = do
 --     }
 --   }
 
-test3 :: IO (AccessToken, RefreshToken)
+test3 :: IO (Either Error (PaginatedResponse "data" [Contact ()]))
 test3 = do
   let rtkn = RefreshToken "1000.7950f276ab5889010ba61d5074835d16.84a6e76f73e09303f32e408c5ccb298f"
   mgr <- zohoManager
   runZohoT mgr  zohoOAuth rtkn Nothing $ do
-    _ <- ZohoM.refreshAccessToken
-    r <- getRefreshToken
-    a <- getAccessToken
-    pure (a, r)
+    -- _ <- ZohoM.refreshAccessToken
+    -- r <- getRefreshToken
+    -- a <- getAccessToken
+    -- pure (a, r)
+    R.list "Contacts" defaultListOptions{ optPerPage = Just 5 }
