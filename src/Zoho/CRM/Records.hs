@@ -18,8 +18,8 @@ import Zoho.CRM.Common
 import Data.Time
 import Data.Maybe (listToMaybe)
 import Zoho.ZohoM as ZM
-import Network.HTTP.Client
-import Network.HTTP.Types
+import Network.HTTP.Client as HC
+import Network.HTTP.Types as HT
 
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint modApiName  = ZO.mkApiEndpoint $ "/crm/v2/" <> modApiName
@@ -94,22 +94,26 @@ listRequest modApiName ListOptions{..} =
       applyOptionalParam "per_page" (fmap show optPerPage)
       []
 
--- getSpecificRecord :: forall a . (FromJSON a)
---                   => BS.ByteString
---                   -> Text
---                   -> Manager
---                   -> AccessToken
---                   -> IO (W.Response (Either String (Maybe a)))
--- getSpecificRecord modApiName recordId mgr tkn = do
---   r <- ZO.authGetJSON W.defaults (apiEndpointStr modApiName <> "/" <> toS recordId) mgr tkn
---   pure $ fmap parseResonse r
---   where
---     parseResonse r =
---       if r == mempty
---       then Right Nothing
---       else case (eitherDecode r :: Either String (ResponseWrapper "data" [a])) of
---         Left e -> Left e
---         Right x -> Right $ listToMaybe $ unwrapResponse x
+getSpecificRequest :: BS.ByteString
+                   -> Text
+                   -> Request
+getSpecificRequest modApiName recordId =
+  let url = uriAppendPathFragment ("/" <> toS recordId) (apiEndpoint modApiName)
+  in ZO.prepareGet url  [] []
+
+getSpecific :: (HasZoho m, FromJSON a)
+            => BS.ByteString
+            -> Text
+            -> m (Either Error (Maybe a))
+getSpecific modApiName recordId = do
+  res <- ZM.runRequest $ getSpecificRequest modApiName recordId
+  let rbody = HC.responseBody res
+  if rbody == mempty
+    then pure $ Right Nothing
+    else case ZM.parseResponse rbody of
+           Left e -> pure $ Left e
+           Right (xs :: ResponseWrapper "data" [a]) ->
+             pure $ Right $ listToMaybe $ unwrapResponse xs
 
 -- insert :: forall a . (ToJSON a)
 --        => BS.ByteString

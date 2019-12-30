@@ -22,7 +22,7 @@ import Control.Lens
 import Data.Aeson (FromJSON)
 import Network.Wreq.Types (Postable)
 import Zoho.Types (zohoResponseChecker)
-
+import Data.Aeson as Aeson
 
 mkEndpoint :: Host -> BS.ByteString -> URI
 mkEndpoint h p = URI
@@ -134,6 +134,11 @@ authorizationUrl scopes oa =
 --          -> IO (Response BSL.ByteString)
 -- authPost opt uri pload mgr tkn = W.postWith (addAuthHeader mgr tkn opt) uri pload
 
+uriAppendPathFragment :: BS.ByteString
+                      -> URI
+                      -> URI
+uriAppendPathFragment p u = u{uriPath=(uriPath u) <> p}
+
 setRequestHeaders :: RequestHeaders
                   -> Request
                   -> Request
@@ -167,6 +172,24 @@ prepareGet u q h =
   setQueryString q $
   parseRequest_ $ "GET " <> (toS $ serializeURIRef' u)
 
+preparePost :: URI
+            -> [(BS.ByteString, Maybe BS.ByteString)]
+            -> RequestHeaders
+            -> BSL.ByteString
+            -> Request
+preparePost u q h pload =
+  let req = setRequestHeaders h $
+            setQueryString q $
+            parseRequest_ $ "POST " <> (toS $ serializeURIRef' u)
+  in req{requestBody=RequestBodyLBS pload}
+
+prepareJSONPost :: (ToJSON a)
+                => URI
+                -> [(BS.ByteString, Maybe BS.ByteString)]
+                -> RequestHeaders
+                -> a
+                -> Request
+prepareJSONPost u q h pload = preparePost u q h (Aeson.encode pload)
 
 runRequest :: Request
            -> Manager

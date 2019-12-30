@@ -294,15 +294,21 @@ isGet req = HT.methodGet == (HC.method req)
 zohoWreqDefaults :: W.Options
 zohoWreqDefaults = W.defaults & W.checkResponse .~ (Just zohoResponseChecker)
 
+parseResponse :: (FromJSON a)
+              => BSL.ByteString
+              -> Either Error a
+parseResponse rbody =
+  case (eitherDecode rbody) of
+    Left e -> Left $ ParseError e rbody
+    Right r -> Right r
+
+
 runRequestAndParseResponse :: (HasZoho m, E.MonadMask m, FromJSON a)
                            => Request
                            -> m (Either Error a)
 runRequestAndParseResponse req = do
   res <- runRequest req
-  let rbody = HC.responseBody res
-  case (eitherDecode rbody) of
-    Left e -> pure $ Left $ ParseError e rbody
-    Right r -> pure $ Right r
+  pure $ parseResponse $ HC.responseBody res
 
 defaultRunRequest :: (HasZoho m, E.MonadMask m)
                   => Request
