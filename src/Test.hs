@@ -36,42 +36,42 @@ data MyFields = MyFields
 $(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''MyFields)
 $(makeLensesWith abbreviatedFields ''MyFields)
 
--- test :: IO (Maybe (Either String (PaginatedResponse "data" [Contact Aeson.Value])))
--- test :: IO (W.Response BSL.ByteString)
--- test :: IO ()
--- test :: IO (Maybe (Either String (Maybe (Contact Aeson.Value))))
-test = do
-  let rtkn = RefreshToken "1000.7950f276ab5889010ba61d5074835d16.84a6e76f73e09303f32e408c5ccb298f"
-  mgr <- zohoManager
-  t <- getCurrentTime
-  -- x <- withAccessToken mgr zohoOAuth rtkn Nothing (Contacts.list defaultListOptions{optPerPage=(Just 200), optModifiedAfter=(Just t{utctDayTime=75600})})
-  -- x <- withAccessToken mgr zohoOAuth rtkn Nothing (R.getSpecificRecord "Contacts" "3064310000023326001")
-  let c :: Contact MyFields = emptyContact
-        & fixedFields ?~ emptyContactFixedFields
-        & fixedFields._Just.lastName ?~ ("Nanda" :: Text)
-        & otherFields ?~ (MyFields {mfLeadStage = Just "Not Contacted"})
-  x <- withAccessToken mgr zohoOAuth rtkn Nothing (R.insert "Contacts" [c])
-  -- pure $ x ^? _Right . _1 . W.responseBody
-  pure x
-  -- refreshAccessToken mgr oa rtkn
+-- -- test :: IO (Maybe (Either String (PaginatedResponse "data" [Contact Aeson.Value])))
+-- -- test :: IO (W.Response BSL.ByteString)
+-- -- test :: IO ()
+-- -- test :: IO (Maybe (Either String (Maybe (Contact Aeson.Value))))
+-- test = do
+--   let rtkn = RefreshToken "1000.7950f276ab5889010ba61d5074835d16.84a6e76f73e09303f32e408c5ccb298f"
+--   mgr <- zohoManager
+--   t <- getCurrentTime
+--   -- x <- withAccessToken mgr zohoOAuth rtkn Nothing (Contacts.list defaultListOptions{optPerPage=(Just 200), optModifiedAfter=(Just t{utctDayTime=75600})})
+--   -- x <- withAccessToken mgr zohoOAuth rtkn Nothing (R.getSpecificRecord "Contacts" "3064310000023326001")
+--   let c :: Contact MyFields = emptyContact
+--         & fixedFields ?~ emptyContactFixedFields
+--         & fixedFields._Just.lastName ?~ ("Nanda" :: Text)
+--         & otherFields ?~ (MyFields {mfLeadStage = Just "Not Contacted"})
+--   x <- withAccessToken mgr zohoOAuth rtkn Nothing (R.insert "Contacts" [c])
+--   -- pure $ x ^? _Right . _1 . W.responseBody
+--   pure x
+--   -- refreshAccessToken mgr oa rtkn
 
-test2 = do
-  BS.putStrLn $ serializeURIRef' $ ZO.authorizationUrl [Scope "ZohoCRM.modules.ALL", Scope "ZohoCRM.settings.ALL"] zohoOAuth
-  BS.putStrLn "Please enter exchange token:"
-  t <- Prelude.getLine
-  mgr <- zohoManager
-  O.fetchAccessToken2 mgr zohoOAuth (ExchangeToken $ toS t)
+-- test2 = do
+--   BS.putStrLn $ serializeURIRef' $ ZO.authorizationUrl [Scope "ZohoCRM.modules.ALL", Scope "ZohoCRM.settings.ALL"] zohoOAuth
+--   BS.putStrLn "Please enter exchange token:"
+--   t <- Prelude.getLine
+--   mgr <- zohoManager
+--   O.fetchAccessToken2 mgr zohoOAuth (ExchangeToken $ toS t)
 
--- contact :: Contact ()
--- contact = Contact
---   { contactVisitSummary = Nothing
---   , contactScoreSummary = Nothing
---   , contactGoogleAdsInfo = Nothing
---   , contactSpecialFields = Nothing
---   , contactFixedFields = ContactFixedFields
---     { cffLastName = "Something"
---     }
---   }
+-- -- contact :: Contact ()
+-- -- contact = Contact
+-- --   { contactVisitSummary = Nothing
+-- --   , contactScoreSummary = Nothing
+-- --   , contactGoogleAdsInfo = Nothing
+-- --   , contactSpecialFields = Nothing
+-- --   , contactFixedFields = ContactFixedFields
+-- --     { cffLastName = "Something"
+-- --     }
+-- --   }
 
 test3 :: IO (Either Error (PaginatedResponse "data" [Contact ()]))
 test3 = do

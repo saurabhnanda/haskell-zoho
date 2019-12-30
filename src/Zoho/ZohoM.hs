@@ -27,6 +27,7 @@ import Network.Wreq.Types as W (ResponseChecker)
 import Debug.Trace
 import Data.Functor (void)
 import Data.Coerce (coerce)
+import qualified Zoho.OAuth as ZO
 
 class (MonadIO m, E.MonadMask m) => HasZoho m where
   refreshAccessToken :: m (OAuth2Result TokenRequest.Errors OAuth2Token)
@@ -39,6 +40,7 @@ class (MonadIO m, E.MonadMask m) => HasZoho m where
   getAccessToken :: m AccessToken
   setTokens :: (Maybe RefreshToken, Maybe AccessToken) -> m ()
   getOAuth2Credentials :: m OAuth2
+  runRequest :: Request -> m (Response BSL.ByteString)
 
 data ZohoEnv = ZohoEnv
   { zenvTokenRef :: IORef (RefreshToken, AccessToken)
@@ -63,6 +65,7 @@ runZohoT mgr oa rtkn mAtkn action = do
   runReaderT action zenv
 
 instance (MonadIO m, E.MonadMask m) => HasZoho (ZohoT m) where
+  runRequest = defaultRunRequest
   getManager = view manager
   getOAuth2Credentials = view oauth2
   getRefreshToken = (view tokenRef) >>= (liftIO . (fmap fst) . readIORef)
@@ -138,49 +141,49 @@ zohoRetryPolicy :: RetryPolicy
 zohoRetryPolicy =
   (Retry.exponentialBackoff 10000) <> (Retry.limitRetries 2)
 
-runRequest :: (FromJSON a, HasZoho m, E.MonadMask m)
-           => (Manager -> AccessToken -> IO (W.Response BSL.ByteString))
-           -> m (Either Error a)
-runRequest action = do
-  mgr <- getManager
-  -- TODO: Handle HttpException and retry on oauth failures
-  r <- Retry.recovering
-       zohoRetryPolicy
-       [const $ E.Handler zohoRetriableHandler]
-       (const $ modifiedAction mgr)
+-- runRequest :: (FromJSON a, HasZoho m, E.MonadMask m)
+--            => (Manager -> AccessToken -> IO (W.Response BSL.ByteString))
+--            -> m (Either Error a)
+-- runRequest action = do
+--   mgr <- getManager
+--   -- TODO: Handle HttpException and retry on oauth failures
+--   r <- Retry.recovering
+--        zohoRetryPolicy
+--        [const $ E.Handler zohoRetriableHandler]
+--        (const $ modifiedAction mgr)
 
-  case eitherDecode $ r ^. W.responseBody of
-    Left e -> pure $ Left $ ParseError e (r ^. W.responseBody)
-    Right r -> pure $ Right r
+--   case eitherDecode $ r ^. W.responseBody of
+--     Left e -> pure $ Left $ ParseError e (r ^. W.responseBody)
+--     Right r -> pure $ Right r
 
-  -- TODO: Try parsing into error object? Does that even depend on HTTP status
-  -- code?
-  where
-    modifiedAction mgr = do
-      atkn <- getAccessToken
-      r <- liftIO $ retryOnTemporaryNetworkErrors $ action mgr atkn
-      case r ^. W.responseStatus . W.statusCode of
-        401 -> case traceShowId $ eitherDecode $ r ^. W.responseBody of
-          Left e -> pure r
-          Right ZohoError{zerrCode} -> case zerrCode of
-            ZErrInvalidToken -> do
-              -- check if AccessToken has been changed by the time we got here.
-              -- If requests are being made concurrently, then it is possible
-              -- that some other invocation of `runRequest` has already performed
-              -- the `refreshAccessToken` step and we don't need to do it again.
-              atkn2 <- getAccessToken
-              if (coerce atkn :: Text) /= (coerce atkn2)
-                then E.throwM ZohoRetriableException
-                else do refreshAccessToken >>= \case
-                          Left e -> E.throwM $ TokenError e
-                          Right _ -> E.throwM ZohoRetriableException
-            _ -> pure r
-        _ -> pure r
-
-
+--   -- TODO: Try parsing into error object? Does that even depend on HTTP status
+--   -- code?
+--   where
+--     modifiedAction mgr = do
+--       atkn <- getAccessToken
+--       r <- liftIO $ retryOnTemporaryNetworkErrors $ action mgr atkn
+--       case r ^. W.responseStatus . W.statusCode of
+--         401 -> case traceShowId $ eitherDecode $ r ^. W.responseBody of
+--           Left e -> pure r
+--           Right ZohoError{zerrCode} -> case zerrCode of
+--             ZErrInvalidToken -> do
+--               -- check if AccessToken has been changed by the time we got here.
+--               -- If requests are being made concurrently, then it is possible
+--               -- that some other invocation of `runRequest` has already performed
+--               -- the `refreshAccessToken` step and we don't need to do it again.
+--               atkn2 <- getAccessToken
+--               if (coerce atkn :: Text) /= (coerce atkn2)
+--                 then E.throwM ZohoRetriableException
+--                 else do refreshAccessToken >>= \case
+--                           Left e -> E.throwM $ TokenError e
+--                           Right _ -> E.throwM ZohoRetriableException
+--             _ -> pure r
+--         _ -> pure r
 
 
-    zohoRetriableHandler (e :: ZohoRetriableException) = pure True
+
+
+--     zohoRetriableHandler (e :: ZohoRetriableException) = pure True
     -- httpExceptionHandler (e :: HttpException) =
     --   pure $ case e of
     --     InvalidUrlException _ _ -> False
@@ -275,9 +278,65 @@ retryOnTemporaryNetworkErrors action = Retry.recovering
             -- error $ "Not expecting a StatusCodeException to be raised after using Wreq.checkResponse\n" <>
             -- show x <>
             -- "\n-----------"
+isRetryableStatusCode :: Int -> Bool
+isRetryableStatusCode s = case s of
+  408 -> True -- request timeout
+  409 -> True -- Conflict
+  412 -> True -- precondition failed
+  417 -> True -- Expectation failed
+  420 -> True -- Enhance your calm
+  429 -> True -- Too many requests
+  _ -> False
 
 isGet :: Request -> Bool
 isGet req = HT.methodGet == (HC.method req)
 
 zohoWreqDefaults :: W.Options
 zohoWreqDefaults = W.defaults & W.checkResponse .~ (Just zohoResponseChecker)
+
+runRequestAndParseResponse :: (HasZoho m, E.MonadMask m, FromJSON a)
+                           => Request
+                           -> m (Either Error a)
+runRequestAndParseResponse req = do
+  res <- runRequest req
+  let rbody = HC.responseBody res
+  case (eitherDecode rbody) of
+    Left e -> pure $ Left $ ParseError e rbody
+    Right r -> pure $ Right r
+
+defaultRunRequest :: (HasZoho m, E.MonadMask m)
+                  => Request
+                  -> m (Response BSL.ByteString)
+defaultRunRequest req = do
+  mgr <- getManager
+  Retry.recovering
+    zohoRetryPolicy
+    [const $ E.Handler zohoRetriableHandler]
+    (const $ modifiedAction mgr)
+  where
+    zohoRetriableHandler (e :: ZohoRetriableException) = pure True
+
+    modifiedAction mgr = do
+      atkn <- getAccessToken
+      r <- liftIO $ retryOnTemporaryNetworkErrors $ ZO.runRequest req mgr atkn
+      case (HT.statusCode $ HC.responseStatus r) of
+        200 -> pure r
+        401 -> case eitherDecode $ HC.responseBody r of
+          Left e -> pure r
+          Right ZohoError{zerrCode} -> case zerrCode of
+            ZErrInvalidToken -> do
+              -- check if AccessToken has been changed by the time we got here.
+              -- If requests are being made concurrently, then it is possible
+              -- that some other invocation of `runRequest` has already performed
+              -- the `refreshAccessToken` step and we don't need to do it again.
+              atkn2 <- getAccessToken
+              if (coerce atkn :: Text) /= (coerce atkn2)
+                then E.throwM ZohoRetriableException
+                else do refreshAccessToken >>= \case
+                          Left e -> E.throwM $ TokenError e
+                          Right _ -> E.throwM ZohoRetriableException
+            _ -> pure r
+        st -> if isRetryableStatusCode st
+              then E.throwM ZohoRetriableException
+              else E.throwM $ HttpExceptionRequest req $ StatusCodeException (void r) (toS $ HC.responseBody r)
+

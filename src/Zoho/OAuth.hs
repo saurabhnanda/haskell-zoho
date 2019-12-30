@@ -14,7 +14,7 @@ import Data.List as DL
 import Data.Coerce (coerce)
 import Data.Text as T
 import Data.String.Conv
-import Network.HTTP.Client as HC (Manager(..), newManager, Request, ManagerSettings(..), requestBody, requestHeaders, RequestBody(..), Response(..))
+import Network.HTTP.Client as HC -- (Manager(..), newManager, Request, ManagerSettings(..), requestBody, requestHeaders, RequestBody(..), Response(..))
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.HTTP.Types as HT
 import Network.Wreq as W
@@ -111,28 +111,68 @@ authorizationUrl scopes oa =
   in O.appendQueryParams [("scope", s), ("access_type", "offline")] $
      O.authorizationUrl oa
 
-addAuthHeader :: Manager -> AccessToken -> Options -> Options
-addAuthHeader mgr (AccessToken tkn) opt = opt
-  & (header "Authorization") .~ ["Zoho-oauthtoken " <> toS tkn]
-  & W.manager .~ (Right mgr)
-  & W.checkResponse .~ (Just zohoResponseChecker)
+-- addAuthHeader :: Manager -> AccessToken -> Options -> Options
+-- addAuthHeader mgr (AccessToken tkn) opt = opt
+--   & (header "Authorization") .~ ["Zoho-oauthtoken " <> toS tkn]
+--   & W.manager .~ (Right mgr)
+--   & W.checkResponse .~ (Just zohoResponseChecker)
 
 
-authGetJSON :: Options
-            -> String
-            -> Manager
-            -> AccessToken
-            -> IO (Response BSL.ByteString)
-authGetJSON opt uri mgr tkn = W.getWith (addAuthHeader mgr tkn opt) uri
+-- authGetJSON :: Options
+--             -> String
+--             -> Manager
+--             -> AccessToken
+--             -> IO (Response BSL.ByteString)
+-- authGetJSON opt uri mgr tkn = W.getWith (addAuthHeader mgr tkn opt) uri
 
-authPost :: (Postable a)
-         => Options
-         -> String
-         -> a
-         -> Manager
-         -> AccessToken
-         -> IO (Response BSL.ByteString)
-authPost opt uri pload mgr tkn = W.postWith (addAuthHeader mgr tkn opt) uri pload
+-- authPost :: (Postable a)
+--          => Options
+--          -> String
+--          -> a
+--          -> Manager
+--          -> AccessToken
+--          -> IO (Response BSL.ByteString)
+-- authPost opt uri pload mgr tkn = W.postWith (addAuthHeader mgr tkn opt) uri pload
+
+setRequestHeaders :: RequestHeaders
+                  -> Request
+                  -> Request
+setRequestHeaders h req = req{requestHeaders=h}
+
+addRequestHeaders :: RequestHeaders
+                  -> Request
+                  -> Request
+addRequestHeaders h req = req{requestHeaders=h ++ (requestHeaders req)}
+
+removeRequestHeader :: HeaderName
+                    -> Request
+                    -> Request
+removeRequestHeader n req =
+  let h = DL.deleteBy (\x y -> fst x == fst y) (n, "") (requestHeaders req)
+  in req{requestHeaders=h}
+
+replaceAuthHeader :: AccessToken
+                  -> Request
+                  -> Request
+replaceAuthHeader (AccessToken tkn) req =
+  addRequestHeaders [(hAuthorization, "Zoho-oauthtoken " <> toS tkn)] $
+  removeRequestHeader hAuthorization req
+
+prepareGet :: URI
+           -> [(BS.ByteString, Maybe BS.ByteString)]
+           -> RequestHeaders
+           -> Request
+prepareGet u q h =
+  setRequestHeaders h $
+  setQueryString q $
+  parseRequest_ $ "GET " <> (toS $ serializeURIRef' u)
+
+
+runRequest :: Request
+           -> Manager
+           -> AccessToken
+           -> IO (Response BSL.ByteString)
+runRequest req mgr tkn = httpLbs (replaceAuthHeader tkn req) mgr
 
 testToken :: RefreshToken
 testToken = RefreshToken "1000.d172fccaf6d7e1e08ec40af3cbf05af6.fa961eedf1fa4b2cfbe822439b376bb0"
