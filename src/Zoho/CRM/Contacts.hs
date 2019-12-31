@@ -171,17 +171,11 @@ instance (FromJSON a) => FromJSON (Contact a) where
 
 instance (ToJSON a) => ToJSON (Contact a) where
   toJSON Contact{..} =
-    mergeObject (toJSON contactVisitSummary) $
-    mergeObject (toJSON contactScoreSummary) $
-    mergeObject (toJSON contactGoogleAdsInfo) $
-    mergeObject (toJSON contactSpecialFields) $
-    mergeObject (toJSON contactFixedFields) (toJSON contactOtherFields)
-    where
-      mergeObject (Aeson.Object x) (Aeson.Object y) = (Aeson.Object $ x <> y)
-      mergeObject (Aeson.Object x) Aeson.Null = Aeson.Object x
-      mergeObject Aeson.Null (Aeson.Object x) = Aeson.Object x
-      mergeObject Aeson.Null Aeson.Null = Aeson.Null
-      mergeObject x y = Prelude.error $  "unexpected " <> "\n" <> show x  <> "\n" <> show y
+    unsafeMergeObjects (toJSON contactVisitSummary) $
+    unsafeMergeObjects (toJSON contactScoreSummary) $
+    unsafeMergeObjects (toJSON contactGoogleAdsInfo) $
+    unsafeMergeObjects (toJSON contactSpecialFields) $
+    unsafeMergeObjects (toJSON contactFixedFields) (toJSON contactOtherFields)
 
 -- list :: (FromJSON a)
 --      => ListOptions

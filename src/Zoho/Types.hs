@@ -162,3 +162,11 @@ zohoResponseChecker req res = do
 
 data ZohoRetriableException = ZohoRetriableException deriving (Eq, Show)
 instance Exception ZohoRetriableException
+
+
+unsafeMergeObjects :: Aeson.Value -> Aeson.Value -> Aeson.Value
+unsafeMergeObjects (Aeson.Object x) (Aeson.Object y) = (Aeson.Object $ x <> y)
+unsafeMergeObjects (Aeson.Object x) Aeson.Null = Aeson.Object x
+unsafeMergeObjects Aeson.Null (Aeson.Object x) = Aeson.Object x
+unsafeMergeObjects Aeson.Null Aeson.Null = Aeson.Null
+unsafeMergeObjects x y = Prelude.error $  "unexpected " <> "\n" <> show x  <> "\n" <> show y

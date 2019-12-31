@@ -20,6 +20,8 @@ import Data.Maybe (listToMaybe)
 import Zoho.ZohoM as ZM
 import Network.HTTP.Client as HC
 import Network.HTTP.Types as HT
+import Data.Aeson.TH
+import Data.Aeson.Casing as Casing
 
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint modApiName  = ZO.mkApiEndpoint $ "/crm/v2/" <> modApiName
@@ -32,6 +34,22 @@ data SortOrder = Asc | Desc deriving (Eq, Show, Ord, Enum)
 data TriState = TriTrue | TriFalse | TriBoth deriving (Eq, Show, Ord, Enum)
 
 type ApiName = Text
+
+data Trigger = TrgWorkflow
+             | TrgApproval
+             | TrgBlueprint
+             deriving (Eq, Show, Ord, Enum)
+
+instance ToJSON Trigger where
+  toJSON t = case t of
+    TrgWorkflow -> "workflow"
+    TrgApproval -> "approval"
+    TrgBlueprint -> "blueprint"
+
+data TriggerSetting = TSOmit
+                    | TSNone
+                    | TSSpecific [Trigger]
+                    deriving (Eq, Show, Ord)
 
 data ListOptions = ListOptions
   { optFields :: Maybe [ApiName]
@@ -119,23 +137,34 @@ getSpecific modApiName recordId = do
 insertRequest :: forall a . (ToJSON a)
               => BS.ByteString
               -> [a]
+              -> TriggerSetting
               -> Request
-insertRequest modApiName records =
-  ZO.prepareJSONPost (apiEndpoint modApiName) [] [] wrappedRecords
+insertRequest modApiName records tsetting =
+  ZO.prepareJSONPost (apiEndpoint modApiName) [] [] finalPayload
   where
+    finalPayload :: Aeson.Value
+    finalPayload =
+      let o1 = Aeson.toJSON wrappedRecords
+          noTrigger = [] :: [Trigger]
+          o2 = case tsetting of
+            TSOmit -> Aeson.object []
+            TSNone -> Aeson.object [ "trigger" Aeson..= noTrigger ]
+            TSSpecific x -> Aeson.object [ "trigger" Aeson..= x ]
+      in unsafeMergeObjects o1 o2
+
     wrappedRecords :: ResponseWrapper "data" [a]
     wrappedRecords = ResponseWrapper records
 
-insert :: (ToJSON a, HasZoho m)
-       => BS.ByteString
-       -> [a]
-       -> m (Either Error [ZohoResult OnlyMetaData])
-insert modApiName records =
-  (ZM.runRequestAndParseResponse $ insertRequest modApiName records) >>= \case
-  Left e ->
-    pure $ Left e
-  Right (r :: ResponseWrapper "data" [ZohoResult OnlyMetaData]) ->
-    pure $ Right $ unwrapResponse r
+-- insert :: (ToJSON a, HasZoho m)
+--        => BS.ByteString
+--        -> [a]
+--        -> m (Either Error [ZohoResult OnlyMetaData])
+-- insert modApiName records =
+--   (ZM.runRequestAndParseResponse $ insertRequest modApiName records) >>= \case
+--   Left e ->
+--     pure $ Left e
+--   Right (r :: ResponseWrapper "data" [ZohoResult OnlyMetaData]) ->
+--     pure $ Right $ unwrapResponse r
 
 -- insert :: forall a . (ToJSON a)
 --        => BS.ByteString
