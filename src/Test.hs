@@ -82,4 +82,4 @@ test3 = do
     -- r <- getRefreshToken
     -- a <- getAccessToken
     -- pure (a, r)
-    R.list "Contacts" defaultListOptions{ optPerPage = Just 5 }
+    R.list "Contacts2" defaultListOptions{ optPerPage = Just 5 }

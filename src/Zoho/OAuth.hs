@@ -177,11 +177,7 @@ preparePost :: URI
             -> RequestHeaders
             -> BSL.ByteString
             -> Request
-preparePost u q h pload =
-  let req = setRequestHeaders h $
-            setQueryString q $
-            parseRequest_ $ "POST " <> (toS $ serializeURIRef' u)
-  in req{requestBody=RequestBodyLBS pload}
+preparePost = prepareWithPayload "POST"
 
 prepareJSONPost :: (ToJSON a)
                 => URI
@@ -189,7 +185,39 @@ prepareJSONPost :: (ToJSON a)
                 -> RequestHeaders
                 -> a
                 -> Request
-prepareJSONPost u q h pload = preparePost u q h (Aeson.encode pload)
+prepareJSONPost u q h pload =
+  prepareWithPayload "POST" u q h (Aeson.encode pload)
+
+prepareDelete :: URI
+              -> [(BS.ByteString, Maybe BS.ByteString)]
+              -> RequestHeaders
+              -> Maybe BSL.ByteString
+              -> Request
+prepareDelete u q h mPload =
+  case mPload of
+    Nothing -> prepareWithoutPayload "DELETE" u q h
+    Just pload -> prepareWithPayload "DELETE" u q h pload
+
+prepareWithoutPayload :: String
+                      -> URI
+                      -> [(BS.ByteString, Maybe BS.ByteString)]
+                      -> RequestHeaders
+                      -> Request
+prepareWithoutPayload method u q h =
+  setRequestHeaders h $
+  setQueryString q $
+  parseRequest_ $ method <> " " <> (toS $ serializeURIRef' u)
+
+prepareWithPayload :: String
+                   -> URI
+                   -> [(BS.ByteString, Maybe BS.ByteString)]
+                   -> RequestHeaders
+                   -> BSL.ByteString
+                   -> Request
+prepareWithPayload method u q h pload =
+  let req = prepareWithoutPayload method u q h
+  in req{requestBody=RequestBodyLBS pload}
+
 
 runRequest :: Request
            -> Manager

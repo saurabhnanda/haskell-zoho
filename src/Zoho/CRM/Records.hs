@@ -22,6 +22,8 @@ import Network.HTTP.Client as HC
 import Network.HTTP.Types as HT
 import Data.Aeson.TH
 import Data.Aeson.Casing as Casing
+import qualified Data.List.NonEmpty as NE
+import GHC.Base (sconcat)
 
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint modApiName  = ZO.mkApiEndpoint $ "/crm/v2/" <> modApiName
@@ -134,13 +136,80 @@ getSpecific modApiName recordId = do
              pure $ Right $ listToMaybe $ unwrapResponse xs
 
 
-insertRequest :: forall a . (ToJSON a)
+insertRequest :: (ToJSON a)
               => BS.ByteString
               -> [a]
               -> TriggerSetting
               -> Request
 insertRequest modApiName records tsetting =
-  ZO.prepareJSONPost (apiEndpoint modApiName) [] [] finalPayload
+  insertUpdateHelper "POST" modApiName records tsetting Nothing
+
+insert :: (ToJSON a, HasZoho m)
+       => BS.ByteString
+       -> [a]
+       -> TriggerSetting
+       -> m (Either Error [ZohoResult OnlyMetaData])
+insert modApiName records tsetting =
+  (ZM.runRequestAndParseResponse $ insertRequest modApiName records tsetting) >>= \case
+  Left e ->
+    pure $ Left e
+  Right (r :: ResponseWrapper "data" [ZohoResult OnlyMetaData]) ->
+    pure $ Right $ unwrapResponse r
+
+
+updateRequest :: (ToJSON a)
+              => BS.ByteString
+              -> [a]
+              -> TriggerSetting
+              -> Request
+updateRequest modApiName records tsetting =
+  insertUpdateHelper "PUT" modApiName records tsetting Nothing
+
+
+update :: (ToJSON a, HasZoho m)
+       => BS.ByteString
+       -> [a]
+       -> TriggerSetting
+       -> m (Either Error [ZohoResult OnlyMetaData])
+update modApiName records tsetting =
+  ZM.runRequestAndParseResponse $ updateRequest modApiName records tsetting
+
+
+
+type DuplicateCheckFields = [Text]
+
+upsertRequest :: (ToJSON a)
+              => BS.ByteString
+              -> [a]
+              -> TriggerSetting
+              -> DuplicateCheckFields
+              -> Request
+upsertRequest modApiName records tsetting dupCheckFields =
+  insertUpdateHelper "POST" modApiName records tsetting (Just dupCheckFields)
+
+type TriggerWorkflow = Bool
+deleteRequest :: BS.ByteString
+              -> NE.NonEmpty Text
+              -> TriggerWorkflow
+              -> Request
+deleteRequest modApiName recordIds wfTrigger =
+  prepareDelete (apiEndpoint modApiName) params [] Nothing
+  where
+    params = [ ("ids", Just $ toS $ sconcat $ NE.intersperse "," recordIds)
+             , ("wf_trigger", Just $ if wfTrigger then "true" else "false")
+             ]
+
+-- * Internal helper function
+--
+insertUpdateHelper :: forall a . (ToJSON a)
+                   => String
+                   -> BS.ByteString
+                   -> [a]
+                   -> TriggerSetting
+                   -> Maybe DuplicateCheckFields
+                   -> Request
+insertUpdateHelper method modApiName records tsetting mDupCheckFields =
+  ZO.prepareWithPayload method (apiEndpoint modApiName) [] [] (Aeson.encode finalPayload)
   where
     finalPayload :: Aeson.Value
     finalPayload =
@@ -150,36 +219,11 @@ insertRequest modApiName records tsetting =
             TSOmit -> Aeson.object []
             TSNone -> Aeson.object [ "trigger" Aeson..= noTrigger ]
             TSSpecific x -> Aeson.object [ "trigger" Aeson..= x ]
-      in unsafeMergeObjects o1 o2
+          o3 = case mDupCheckFields of
+            Nothing -> Aeson.object []
+            Just dupCheckFields -> Aeson.object [ "duplicate_check_fields" Aeson..= dupCheckFields ]
+      in o1 `unsafeMergeObjects` o2 `unsafeMergeObjects` o3
 
     wrappedRecords :: ResponseWrapper "data" [a]
     wrappedRecords = ResponseWrapper records
 
--- insert :: (ToJSON a, HasZoho m)
---        => BS.ByteString
---        -> [a]
---        -> m (Either Error [ZohoResult OnlyMetaData])
--- insert modApiName records =
---   (ZM.runRequestAndParseResponse $ insertRequest modApiName records) >>= \case
---   Left e ->
---     pure $ Left e
---   Right (r :: ResponseWrapper "data" [ZohoResult OnlyMetaData]) ->
---     pure $ Right $ unwrapResponse r
-
--- insert :: forall a . (ToJSON a)
---        => BS.ByteString
---        -> [a]
---        -> Manager
---        -> AccessToken
---        -> IO (W.Response (Either String [Aeson.Value]))
--- insert modApiName records mgr tkn = do
---   r <- ZO.authPost W.defaults (apiEndpointStr modApiName) (toJSON pload) mgr tkn
---   pure $ fmap parseResponse r
---   where
---     pload :: ResponseWrapper "data" [a]
---     pload = ResponseWrapper records
-
---     parseResponse bsl =
---       case eitherDecode bsl :: Either String (ResponseWrapper "data" [Aeson.Value]) of
---         Left e -> Left e
---         Right r -> Right $ unwrapResponse r
