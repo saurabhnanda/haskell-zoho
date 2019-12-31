@@ -116,33 +116,36 @@ data Error = HTTPError !HttpException
 
 instance Exception Error
 
-data ZohoErrorCode = ZErrInvalidToken
-                   | ZErrOther !Text
-                   deriving (Eq, Show, Generic, Ord)
+data ZohoCode = ZCodeInvalidIToken
+              | ZCodeSuccess
+              | ZCodeOther !Text
+              deriving (Eq, Show, Generic, Ord)
 
-instance FromJSON ZohoErrorCode where
-  parseJSON = withText "Expecting text to parse into ZohoErrorCode" $ \t -> pure $ case t of
-    "INVALID_TOKEN" -> ZErrInvalidToken
-    _ -> ZErrOther t
+instance FromJSON ZohoCode where
+  parseJSON = withText "Expecting text to parse into ZohoCode" $ \t -> pure $ case t of
+    "INVALID_TOKEN" -> ZCodeInvalidIToken
+    _ -> ZCodeOther t
 
-data ZohoStatusCode = ZStatusError
-                    | ZStatusOther !Text
-                    deriving (Eq, Show, Generic, Ord)
+data ZohoStatus = ZStatusError
+                | ZStatusSuccess
+                | ZStatusOther !Text
+                deriving (Eq, Show, Generic, Ord)
 
-instance FromJSON ZohoStatusCode where
-  parseJSON = withText "Expecting text to parse into ZohoStatusCode" $ \t -> pure $ case t of
+instance FromJSON ZohoStatus where
+  parseJSON = withText "Expecting text to parse into ZohoStatus" $ \t -> pure $ case t of
     "error" -> ZStatusError
+    "success" -> ZStatusSuccess
     _ -> ZStatusOther t
 
 
-data ZohoError = ZohoError
-  { zerrCode :: !ZohoErrorCode
-  , zerrDetails :: !Aeson.Value
-  , zerrMessage :: !Text
-  , zerrStatus :: !ZohoStatusCode
+data ZohoResult a = ZohoResult
+  { zresCode :: !ZohoCode
+  , zresDetails :: !a
+  , zresMessage :: !Text
+  , zresStatus :: !ZohoStatus
   } deriving (Eq, Show, Generic)
 
-instance FromJSON ZohoError where
+instance (FromJSON a) => FromJSON (ZohoResult a) where
   parseJSON = genericParseJSON (Casing.aesonPrefix snakeCase)
 
 -- $(deriveJSON  ''ZohoErrro)

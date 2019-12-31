@@ -115,6 +115,28 @@ getSpecific modApiName recordId = do
            Right (xs :: ResponseWrapper "data" [a]) ->
              pure $ Right $ listToMaybe $ unwrapResponse xs
 
+
+insertRequest :: forall a . (ToJSON a)
+              => BS.ByteString
+              -> [a]
+              -> Request
+insertRequest modApiName records =
+  ZO.prepareJSONPost (apiEndpoint modApiName) [] [] wrappedRecords
+  where
+    wrappedRecords :: ResponseWrapper "data" [a]
+    wrappedRecords = ResponseWrapper records
+
+insert :: (ToJSON a, HasZoho m)
+       => BS.ByteString
+       -> [a]
+       -> m (Either Error [ZohoResult OnlyMetaData])
+insert modApiName records =
+  (ZM.runRequestAndParseResponse $ insertRequest modApiName records) >>= \case
+  Left e ->
+    pure $ Left e
+  Right (r :: ResponseWrapper "data" [ZohoResult OnlyMetaData]) ->
+    pure $ Right $ unwrapResponse r
+
 -- insert :: forall a . (ToJSON a)
 --        => BS.ByteString
 --        -> [a]

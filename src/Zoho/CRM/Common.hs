@@ -102,9 +102,18 @@ instance EmptyZohoStructure GoogleAdsInfo where
   emptyZohoStructure = emptyGoogleAdsInfo
 
 
+data OnlyMetaData = OnlyMetaData
+  { mdCreatedTime :: ZonedTime
+  , mdModiifedTime :: ZonedTime
+  , mdCreatedBy :: Reference "name"
+  , mdModifiedBy :: Reference "name"
+  } deriving (Show)
+
 $(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''VisitSummary)
 $(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''ScoreSummary)
 $(deriveJSON googleAdsJsonOptions ''GoogleAdsInfo)
+$(deriveJSON (Casing.aesonPrefix pascalSnakeCase) ''OnlyMetaData)
 $(makeLensesWith abbreviatedFields ''VisitSummary)
 $(makeLensesWith abbreviatedFields ''ScoreSummary)
 $(makeLensesWith abbreviatedFields ''GoogleAdsInfo)
+$(makeLensesWith abbreviatedFields ''OnlyMetaData)

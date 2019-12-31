@@ -327,10 +327,10 @@ defaultRunRequest req = do
       r <- liftIO $ retryOnTemporaryNetworkErrors $ ZO.runRequest req mgr atkn
       case (HT.statusCode $ HC.responseStatus r) of
         200 -> pure r
-        401 -> case eitherDecode $ HC.responseBody r of
+        401 -> case (eitherDecode $ HC.responseBody r :: Either String (ZohoResult Aeson.Value)) of
           Left e -> pure r
-          Right ZohoError{zerrCode} -> case zerrCode of
-            ZErrInvalidToken -> do
+          Right ZohoResult{zresCode} -> case zresCode of
+            ZCodeInvalidIToken -> do
               -- check if AccessToken has been changed by the time we got here.
               -- If requests are being made concurrently, then it is possible
               -- that some other invocation of `runRequest` has already performed
