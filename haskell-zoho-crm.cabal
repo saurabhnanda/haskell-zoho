@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bd2652b8e1ff25809dd3c405786b1641260afed6648c8994051ecc8b9a6f9a6d
+-- hash: 8292e90f1c3c3aee016472d873b521f6f38e190a0939ca9f6741d3979e8fa912
 
 name:           haskell-zoho-crm
 version:        0.1.0.0
@@ -53,6 +53,7 @@ library
     , retry
     , string-conv
     , text
+    , text-conversions
     , time
     , unordered-containers
     , uri-bytestring

@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 module Zoho.CRM.Records where
 
 import Zoho.OAuth as ZO
@@ -7,7 +8,7 @@ import Data.ByteString as BS
 import Data.ByteString.Lazy as BSL
 import Network.Wreq as W
 import Data.Aeson as Aeson
-import Data.String.Conv (toS)
+import Data.String.Conv
 import Network.HTTP.Client (Manager)
 import URI.ByteString as U
 import Zoho.Types
@@ -24,6 +25,8 @@ import Data.Aeson.TH
 import Data.Aeson.Casing as Casing
 import qualified Data.List.NonEmpty as NE
 import GHC.Base (sconcat)
+import Data.Text.Conversions (ToText(..))
+import GHC.Generics
 
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint modApiName  = ZO.mkApiEndpoint $ "/crm/v2/" <> modApiName
@@ -34,6 +37,14 @@ apiEndpointStr modApiName = toS $ serializeURIRef' $ apiEndpoint modApiName
 
 data SortOrder = Asc | Desc deriving (Eq, Show, Ord, Enum)
 data TriState = TriTrue | TriFalse | TriBoth deriving (Eq, Show, Ord, Enum)
+instance ToText TriState where
+  toText t = case t of
+    TriTrue -> "true"
+    TriFalse -> "false"
+    TriBoth -> "both"
+
+instance (StringConv Text s) => StringConv TriState s where
+  strConv l x = strConv l $ toText x
 
 type ApiName = Text
 
@@ -85,8 +96,10 @@ defaultListOptions = ListOptions
 list :: (FromJSON a, HasZoho m)
      => BS.ByteString
      -> ListOptions
-     -> m (Either Error (PaginatedResponse "data" a))
-list modApiName listopts = ZM.runRequestAndParseResponse (listRequest modApiName listopts)
+     -> m (Either Error (Maybe (PaginatedResponse "data" a)))
+list modApiName listopts =
+  ZM.runRequestAndParseOptionalResponse Just $
+  listRequest modApiName listopts
 
 
 listRequest :: BS.ByteString
@@ -125,16 +138,12 @@ getSpecific :: (HasZoho m, FromJSON a)
             => BS.ByteString
             -> Text
             -> m (Either Error (Maybe a))
-getSpecific modApiName recordId = do
-  res <- ZM.runRequest $ getSpecificRequest modApiName recordId
-  let rbody = HC.responseBody res
-  if rbody == mempty
-    then pure $ Right Nothing
-    else case ZM.parseResponse rbody of
-           Left e -> pure $ Left e
-           Right (xs :: ResponseWrapper "data" [a]) ->
-             pure $ Right $ listToMaybe $ unwrapResponse xs
-
+getSpecific modApiName recordId =
+  runRequestAndParseOptionalResponse transformFn $
+  getSpecificRequest modApiName recordId
+  where
+    transformFn :: ResponseWrapper "data" [a] -> Maybe a
+    transformFn xs = listToMaybe $ unwrapResponse xs
 
 insertRequest :: (ToJSON a)
               => BS.ByteString
@@ -199,6 +208,53 @@ deleteRequest modApiName recordIds wfTrigger =
              , ("wf_trigger", Just $ if wfTrigger then "true" else "false")
              ]
 
+
+data SearchQuery = SearchEmail !Text
+                 | SearchPhone !Text
+                 | SearchWord !Text
+                 deriving (Eq, Show, Generic)
+
+data SearchOpts = SearchOpts
+  { soptsConverted :: Maybe TriState
+  , soptsApproved :: Maybe TriState
+  , soptsPage :: Maybe Int
+  , soptsPerPage :: Maybe Int
+  } deriving (Eq, Show, Generic)
+
+emptySearchOpts :: SearchOpts
+emptySearchOpts = SearchOpts
+  { soptsConverted = Nothing
+  , soptsApproved = Nothing
+  , soptsPerPage = Nothing
+  , soptsPage = Nothing
+  }
+
+searchRequest :: BS.ByteString
+              -> SearchQuery
+              -> SearchOpts
+              -> Request
+searchRequest modApiName q SearchOpts{..} =
+  let url = uriAppendPathFragment "/search" (apiEndpoint modApiName)
+      searchparam = case q of
+        SearchEmail e -> [("email", Just $ toS e)]
+        SearchPhone p -> [("phone", Just $ toS p)]
+        SearchWord w -> [("word", Just $ toS w)]
+      optparams = applyOptionalQueryParam "converted" soptsConverted $
+                  applyOptionalQueryParam "approved" soptsApproved $
+                  applyOptionalQueryParam "page" (show <$> soptsPage) $
+                  applyOptionalQueryParam "per_page" (show <$> soptsPerPage) []
+  in prepareGet url (searchparam <> optparams) []
+
+-- TODO: Handle 204 NO Content
+search :: (FromJSON a, HasZoho m)
+       => BS.ByteString
+       -> SearchQuery
+       -> SearchOpts
+       -> m (Either Error (Maybe (PaginatedResponse "data" a)))
+search modApiName q opts =
+  ZM.runRequestAndParseOptionalResponse Just $
+  searchRequest modApiName q opts
+
 -- * Internal helper function
 --
 insertUpdateHelper :: forall a . (ToJSON a)
@@ -226,4 +282,5 @@ insertUpdateHelper method modApiName records tsetting mDupCheckFields =
 
     wrappedRecords :: ResponseWrapper "data" [a]
     wrappedRecords = ResponseWrapper records
+
 

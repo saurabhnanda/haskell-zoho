@@ -73,7 +73,7 @@ $(makeLensesWith abbreviatedFields ''MyFields)
 -- --     }
 -- --   }
 
-test3 :: IO (Either Error (PaginatedResponse "data" [Contact ()]))
+test3 :: IO (Either Error (Maybe (PaginatedResponse "data" [Contact ()])))
 test3 = do
   let rtkn = RefreshToken "1000.7950f276ab5889010ba61d5074835d16.84a6e76f73e09303f32e408c5ccb298f"
   mgr <- zohoManager
@@ -82,4 +82,5 @@ test3 = do
     -- r <- getRefreshToken
     -- a <- getAccessToken
     -- pure (a, r)
-    R.list "Contacts2" defaultListOptions{ optPerPage = Just 5 }
+    -- R.list "Cases" defaultListOptions{ optPerPage = Just 5 }
+    R.search "Contacts" (SearchEmail "saurabh5@mailinator.com") emptySearchOpts

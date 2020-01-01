@@ -28,6 +28,7 @@ import Debug.Trace
 import Data.Functor (void)
 import Data.Coerce (coerce)
 import qualified Zoho.OAuth as ZO
+import Data.List.NonEmpty as NE
 
 class (MonadIO m, E.MonadMask m) => HasZoho m where
   refreshAccessToken :: m (OAuth2Result TokenRequest.Errors OAuth2Token)
@@ -302,6 +303,20 @@ parseResponse rbody =
     Left e -> Left $ ParseError e rbody
     Right r -> Right r
 
+runRequestAndParseOptionalResponse :: (HasZoho m, FromJSON a)
+                                   => (a -> Maybe b)
+                                   -> Request
+                                   -> m (Either Error (Maybe b))
+runRequestAndParseOptionalResponse transformFn req = do
+  res <- runRequest req
+  let rbody = HC.responseBody res
+      stcode = HT.statusCode $ HC.responseStatus res
+  if rbody == mempty || stcode==204
+    then pure $ Right Nothing
+    else case parseResponse rbody of
+           Left e -> pure $ Left e
+           Right a ->
+             pure $ Right $ transformFn a
 
 runRequestAndParseResponse :: (HasZoho m, E.MonadMask m, FromJSON a)
                            => Request
@@ -327,6 +342,7 @@ defaultRunRequest req = do
       r <- liftIO $ retryOnTemporaryNetworkErrors $ ZO.runRequest req mgr atkn
       case (HT.statusCode $ HC.responseStatus r) of
         200 -> pure r
+        204 -> pure r
         401 -> case (eitherDecode $ HC.responseBody r :: Either String (ZohoResult Aeson.Value)) of
           Left e -> pure r
           Right ZohoResult{zresCode} -> case zresCode of

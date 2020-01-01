@@ -23,6 +23,7 @@ import Data.Aeson (FromJSON)
 import Network.Wreq.Types (Postable)
 import Zoho.Types (zohoResponseChecker)
 import Data.Aeson as Aeson
+import Data.String.Conv
 
 mkEndpoint :: Host -> BS.ByteString -> URI
 mkEndpoint h p = URI
@@ -278,3 +279,12 @@ logRequest r = do
     _ -> Prelude.putStrLn "Cannot print body"
   Prelude.putStrLn $ show $ requestHeaders r
   pure r
+
+applyOptionalQueryParam :: (StringConv a BS.ByteString)
+                        => BS.ByteString
+                        -> Maybe a
+                        -> HT.Query
+                        -> HT.Query
+applyOptionalQueryParam k mVal qp = case mVal of
+  Nothing -> qp
+  Just val -> (k, Just $ toS val):qp
