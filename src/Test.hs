@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Test where
 
 import Zoho.Types
@@ -7,11 +9,10 @@ import Data.String.Conv
 import Zoho.CRM.Records as R
 import URI.ByteString
 import URI.ByteString.QQ
-import Network.HTTP.Client (Manager, ManagerSettings(..), newManager)
+import Network.HTTP.Client (Manager, ManagerSettings(..), newManager, redirectCount, responseBody)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Data.ByteString as BS
 import Data.ByteString.Lazy as BSL
-import Network.Wreq as W
 import Control.Lens
 import Zoho.CRM.Contacts as Contacts
 import Data.Aeson as Aeson
@@ -21,12 +22,31 @@ import Data.Text as Text
 import Data.Aeson.TH
 import GHC.Generics
 import Zoho.ZohoM as ZohoM
+import Zoho.CRM.Common.Utils
+import Data.String (IsString(..))
+import Network.HTTP.Client.TLS
+import Network.Connection (TLSSettings(..))
+import Control.Monad.IO.Class
+import Zoho.Desk.Account as ZDA
 
 zohoOAuth :: OAuth2
 zohoOAuth = mkOAuth hostUS (ClientId "1000.PCRP10N4ZKXC7F029BTTP6UT594BIH") (ClientSecret "67d211c3cb5c31df1a1899462514fba3abe152f6cb") ([uri|http://master.hetzner.vacationlabs.com/lambda/oauth-redirect|])
 
+deskRefreshToken :: RefreshToken
+deskRefreshToken = RefreshToken {rtoken = "1000.31999e915bbc7581a2810685060e8e9e.93ae10b4a89045d644ccfacab2eeb79b"}
+
+deskOrgId :: (IsString a) => a
+deskOrgId = fromString "104397711"
+
 zohoManager :: IO Manager
-zohoManager = newManager $ tlsManagerSettings{managerModifyRequest=logRequest}
+zohoManager =
+  let x = TLSSettingsSimple
+          { settingDisableCertificateValidation = True
+          , settingUseServerName = True
+          , settingDisableSession = False
+          }
+      y = mkManagerSettings x Nothing
+  in newManager y{managerModifyRequest=logRequest}
 
 
 data MyFields = MyFields
@@ -73,14 +93,61 @@ $(makeLensesWith abbreviatedFields ''MyFields)
 -- --     }
 -- --   }
 
-test3 :: IO (Either Error (Maybe (PaginatedResponse "data" [Contact ()])))
+
+data VLContactFields = VLContactFields
+  { contactEmail :: !(Maybe Text)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
+$(makeLensesWith abbreviatedFields ''VLContactFields)
+$(deriveJSON (zohoPrefix pascalSnakeCase) ''VLContactFields)
+
+emptyVlContactFields :: VLContactFields
+emptyVlContactFields = emptyZohoStructure
+
+type VLContact = Contact VLContactFields
+
+myContact :: VLContact
+myContact =
+  let cf = emptyVlContactFields & email ?~ "saurabh5@mailinator.com"
+  in emptyContact
+       & otherFields ?~ cf
+       & lastName ?~ "random shit"
+
+
+--test3 :: IO (Maybe (Contact ()))
 test3 = do
   let rtkn = RefreshToken "1000.7950f276ab5889010ba61d5074835d16.84a6e76f73e09303f32e408c5ccb298f"
   mgr <- zohoManager
   runZohoT mgr  zohoOAuth rtkn Nothing $ do
+    Contacts.search @_ @() (SearchEmail "saurabh5@mailinator.com") emptySearchOpts
+    -- Contacts.upsert [myContact] TSOmit ["Email"]
+
     -- _ <- ZohoM.refreshAccessToken
     -- r <- getRefreshToken
     -- a <- getAccessToken
     -- pure (a, r)
     -- R.list "Cases" defaultListOptions{ optPerPage = Just 5 }
-    R.search "Contacts" (SearchEmail "saurabh5@mailinator.com") emptySearchOpts
+--     r :: (Either Error (Maybe (PaginatedResponse "data" [Contact ()]))) <-
+    -- Contact.upsert
+    --   [ (emptyContact :: (Contact ()))
+    --     & 
+    --   ]
+    --   TSOmit
+    --   ["Email"]
+    -- r <- Contacts.search @_ @() (SearchEmail "saurabh5@mailinator.com") emptySearchOpts
+
+    -- case r ^? _Right . _Just . actualData . (ix 0) of
+    --   Nothing -> Prelude.error "no search results"
+    --   Just con ->
+    --     Contacts.upsert [con{contactLastName=Just "ABCD", contactId=Nothing}] TSOmit ["Email"]
+
+test = serializeURIRef' $ ZO.authorizationUrl (Scope <$> ["Desk.tickets.ALL", "Desk.contacts.ALL", "Desk.search.READ"]) zohoOAuth
+
+test4 = do
+  mgr <- zohoManager
+  runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
+    let r = ZO.prepareGet (ZO.mkEndpoint (Host "desk.zoho.com") "/api/v1/accounts/104785000000074190") [] [("orgId", deskOrgId)]
+    res <- ZohoM.runRequest r{redirectCount=0}
+    liftIO $ BSL.putStrLn $ responseBody res
+    pure $ (eitherDecode $ responseBody res :: Either String (ZDA.Account Aeson.Value))
+
+-- code = "1000.27551c6121b80c94a637c1811e1dfe2e.39a5589989851fc272d936fa0a45d024"

@@ -33,6 +33,7 @@ dependencies:
   - retry
   - exceptions
   - text-conversions
+  - connection
 
 default-extensions:
   - TemplateHaskell
