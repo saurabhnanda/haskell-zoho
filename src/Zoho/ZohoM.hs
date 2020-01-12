@@ -306,21 +306,22 @@ parseResponse rbody =
     Right r -> Right r
 
 runRequestAndParseOptionalResponse :: (HasZoho m, FromJSON a)
-                                   => (a -> Maybe b)
+                                   => b
+                                   -> (a -> b)
                                    -> Request
-                                   -> m (Either Error (Maybe b))
-runRequestAndParseOptionalResponse transformFn req = do
+                                   -> m (Either Error b)
+runRequestAndParseOptionalResponse emptyVal transformFn req = do
   res <- runRequest req
   let rbody = HC.responseBody res
       stcode = HT.statusCode $ HC.responseStatus res
   if rbody == mempty || stcode==204
-    then pure $ Right Nothing
+    then pure $ Right emptyVal
     else case parseResponse rbody of
            Left e -> pure $ Left e
            Right a ->
              pure $ Right $ transformFn a
 
-runRequestAndParseResponse :: (HasZoho m, E.MonadMask m, FromJSON a)
+runRequestAndParseResponse :: forall m a . (HasZoho m, E.MonadMask m, FromJSON a)
                            => Request
                            -> m (Either Error a)
 runRequestAndParseResponse req = do

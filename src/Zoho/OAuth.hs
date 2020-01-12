@@ -20,10 +20,11 @@ import Network.HTTP.Types as HT
 import Network.Wreq as W
 import Control.Lens
 import Data.Aeson (FromJSON)
-import Network.Wreq.Types (Postable)
+-- import Network.Wreq.Types (Postable)
 -- import Zoho.Types (zohoResponseChecker)
 import Data.Aeson as Aeson
 import Data.String.Conv
+import Zoho.Types (OrgId(..))
 
 mkEndpoint :: Host -> BS.ByteString -> URI
 mkEndpoint h p = URI
@@ -169,6 +170,12 @@ replaceAuthHeader :: AccessToken
                   -> Request
 replaceAuthHeader (AccessToken tkn) req =
   replaceRequestHeader (hAuthorization, "Zoho-oauthtoken " <> toS tkn) req
+
+addOrgIdHeader :: OrgId
+               -> Request
+               -> Request
+addOrgIdHeader (OrgId oid) req =
+  addRequestHeaders [("orgId", toS oid)] req
 
 prepareGet :: URI
            -> [(BS.ByteString, Maybe BS.ByteString)]

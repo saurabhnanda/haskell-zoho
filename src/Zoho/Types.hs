@@ -176,3 +176,5 @@ instance EmptyZohoStructure Aeson.Value where
 zohoPrefix :: (String -> String)
            -> Aeson.Options
 zohoPrefix fn = (Casing.aesonPrefix fn){omitNothingFields=True}
+
+newtype OrgId = OrgId Text deriving (Eq, Show, Ord)

@@ -96,7 +96,7 @@ list :: (FromJSON a, HasZoho m)
      -> ListOptions
      -> m (Either Error (Maybe (PaginatedResponse "data" a)))
 list modApiName listopts =
-  ZM.runRequestAndParseOptionalResponse Just $
+  ZM.runRequestAndParseOptionalResponse Nothing Just $
   listRequest modApiName listopts
 
 
@@ -137,7 +137,7 @@ getSpecific :: (HasZoho m, FromJSON a)
             -> Text
             -> m (Either Error (Maybe a))
 getSpecific modApiName recordId =
-  runRequestAndParseOptionalResponse transformFn $
+  runRequestAndParseOptionalResponse Nothing transformFn $
   getSpecificRequest modApiName recordId
   where
     transformFn :: ResponseWrapper "data" [a] -> Maybe a
@@ -278,7 +278,7 @@ search :: (FromJSON a, HasZoho m)
        -> SearchOpts
        -> m (Either Error (Maybe (PaginatedResponse "data" a)))
 search modApiName q opts =
-  ZM.runRequestAndParseOptionalResponse Just $
+  ZM.runRequestAndParseOptionalResponse Nothing Just $
   searchRequest modApiName q opts
 
 -- * Internal helper function

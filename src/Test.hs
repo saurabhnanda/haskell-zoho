@@ -35,8 +35,8 @@ zohoOAuth = mkOAuth hostUS (ClientId "1000.PCRP10N4ZKXC7F029BTTP6UT594BIH") (Cli
 deskRefreshToken :: RefreshToken
 deskRefreshToken = RefreshToken {rtoken = "1000.31999e915bbc7581a2810685060e8e9e.93ae10b4a89045d644ccfacab2eeb79b"}
 
-deskOrgId :: (IsString a) => a
-deskOrgId = fromString "104397711"
+deskOrgId :: OrgId
+deskOrgId = OrgId "104397711"
 
 zohoManager :: IO Manager
 zohoManager =
@@ -145,9 +145,11 @@ test = serializeURIRef' $ ZO.authorizationUrl (Scope <$> ["Desk.tickets.ALL", "D
 test4 = do
   mgr <- zohoManager
   runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
-    let r = ZO.prepareGet (ZO.mkEndpoint (Host "desk.zoho.com") "/api/v1/accounts/104785000000074190") [] [("orgId", deskOrgId)]
-    res <- ZohoM.runRequest r{redirectCount=0}
-    liftIO $ BSL.putStrLn $ responseBody res
-    pure $ (eitherDecode $ responseBody res :: Either String (ZDA.Account Aeson.Value))
+    ZDA.list @_ @() ZDA.emptyListOptions{optFrom=Just 1000} deskOrgId
+
+    -- let r = ZO.prepareGet (ZO.mkEndpoint (Host "desk.zoho.com") "/api/v1/accounts/104785000000074190") [] [("orgId", deskOrgId)]
+    -- res <- ZohoM.runRequest r{redirectCount=0}
+    -- liftIO $ BSL.putStrLn $ responseBody res
+    -- pure $ (eitherDecode $ responseBody res :: Either String (ZDA.Account Aeson.Value))
 
 -- code = "1000.27551c6121b80c94a637c1811e1dfe2e.39a5589989851fc272d936fa0a45d024"
