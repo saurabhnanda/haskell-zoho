@@ -178,3 +178,20 @@ create :: (HasZoho m, ToJSON cf, FromJSON cf)
 create oid a =
   ZM.runRequestAndParseResponse $
   createRequest oid a
+
+updateRequest :: (ToJSON cf)
+              => OrgId
+              -> Text
+              -> Account cf
+              -> Request
+updateRequest oid aid a =
+  ZO.prepareJSONPost (mkApiEndpoint $ "/accounts/" <> toS aid) [] [orgIdHeader oid] a{accId=Just aid}
+
+
+update :: (HasZoho m, ToJSON cf, FromJSON cf)
+       => OrgId
+       -> Account cf
+       -> m (Either Error (Account cf))
+update oid a =
+  ZM.runRequestAndParseResponse $
+  createRequest oid a
