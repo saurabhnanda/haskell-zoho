@@ -1,5 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DefaultSignatures #-}
 module Zoho.Types where
 
 import Data.Aeson
@@ -23,6 +25,9 @@ import Data.Functor (void)
 import Data.ByteString.Lazy as BSL
 import Network.OAuth.OAuth2 (OAuth2Error)
 import qualified Network.OAuth.OAuth2.TokenRequest as TokenRequest (Errors)
+import Control.Lens hiding ((.=), to)
+
+type ApiName = Text
 
 data ResponseWrapper (s :: Symbol) a = ResponseWrapper { unwrapResponse :: a } deriving (Eq, Show)
 
@@ -37,17 +42,17 @@ instance (ToJSON a, KnownSymbol s) => ToJSON (ResponseWrapper s a) where
     in object [ (toS k) Aeson..= (toJSON v) ]
 
 data PaginatedResponse (s :: Symbol) a = PaginatedResponse
-  { pageData :: a
+  { pageActualData :: a
   , pageRecordsPerPage :: Int
   , pageTotalPages :: Int
   , pageCurrentPage :: Int
   , pageMoreRecords :: Bool
   } deriving (Eq, Show)
-
+$(makeLensesWith abbreviatedFields ''PaginatedResponse)
 
 instance (FromJSON a, KnownSymbol s) => FromJSON (PaginatedResponse s a) where
   parseJSON = withObject "Expecting Object to parse into a PaginatedResponse" $ \o -> do
-    pageData <- o .: (toS $ symbolVal (Proxy :: Proxy s))
+    pageActualData <- o .: (toS $ symbolVal (Proxy :: Proxy s))
     info_ <- o .: "info"
     pageRecordsPerPage <- info_ .: "per_page"
     pageTotalPages <- info_ .: "count"
@@ -91,19 +96,6 @@ instance (KnownSymbol s) => ToJSON (Reference s) where
     , (toS $ symbolVal (Proxy :: Proxy s)) .= refName
     ]
 
-pascalSnakeCase :: String -> String
-pascalSnakeCase s = go False s
-  where
-    go _ [] = []
-    go isPrevLower (x:xs) = if Char.isLower x
-                            then x:(go True xs)
-                            else if isPrevLower
-                                 then '_':x:(go False xs)
-                                 else x:(go False xs)
-
-
-class EmptyZohoStructure a where
-  emptyZohoStructure :: a
 
   -- default emptyZohoStructure :: (Generic a, (GEmptyZohoStructure (Rep a))) => a
   -- emptyZohoStructure = GHC.Generics.to gEmptyZohoStructure
@@ -116,49 +108,18 @@ data Error = HTTPError !HttpException
 
 instance Exception Error
 
-data ZohoCode = ZCodeInvalidIToken
-              | ZCodeSuccess
-              | ZCodeOther !Text
-              deriving (Eq, Show, Generic, Ord)
-
-instance FromJSON ZohoCode where
-  parseJSON = withText "Expecting text to parse into ZohoCode" $ \t -> pure $ case t of
-    "INVALID_TOKEN" -> ZCodeInvalidIToken
-    _ -> ZCodeOther t
-
-data ZohoStatus = ZStatusError
-                | ZStatusSuccess
-                | ZStatusOther !Text
-                deriving (Eq, Show, Generic, Ord)
-
-instance FromJSON ZohoStatus where
-  parseJSON = withText "Expecting text to parse into ZohoStatus" $ \t -> pure $ case t of
-    "error" -> ZStatusError
-    "success" -> ZStatusSuccess
-    _ -> ZStatusOther t
-
-
-data ZohoResult a = ZohoResult
-  { zresCode :: !ZohoCode
-  , zresDetails :: !a
-  , zresMessage :: !Text
-  , zresStatus :: !ZohoStatus
-  } deriving (Eq, Show, Generic)
-
-instance (FromJSON a) => FromJSON (ZohoResult a) where
-  parseJSON = genericParseJSON (Casing.aesonPrefix snakeCase)
 
 -- $(deriveJSON  ''ZohoErrro)
 
 
-zohoResponseChecker :: W.ResponseChecker -- type ResponseChecker = Request -> Response BodyReader -> IO ()
-zohoResponseChecker req res = do
-  case res ^. W.responseStatus . W.statusCode of
-    200 -> pure ()
-    401 -> pure ()
-    _ -> do
-      bs <- HC.brConsume $ res ^. W.responseBody
-      throwIO $ HttpExceptionRequest req $ StatusCodeException (void res) (mconcat bs)
+-- zohoResponseChecker :: W.ResponseChecker -- type ResponseChecker = Request -> Response BodyReader -> IO ()
+-- zohoResponseChecker req res = do
+--   case res ^. W.responseStatus . W.statusCode of
+--     200 -> pure ()
+--     401 -> pure ()
+--     _ -> do
+--       bs <- HC.brConsume $ res ^. W.responseBody
+--       throwIO $ HttpExceptionRequest req $ StatusCodeException (void res) (mconcat bs)
 
 data ZohoRetriableException = ZohoRetriableException deriving (Eq, Show)
 instance Exception ZohoRetriableException
@@ -170,3 +131,48 @@ unsafeMergeObjects (Aeson.Object x) Aeson.Null = Aeson.Object x
 unsafeMergeObjects Aeson.Null (Aeson.Object x) = Aeson.Object x
 unsafeMergeObjects Aeson.Null Aeson.Null = Aeson.Null
 unsafeMergeObjects x y = Prelude.error $  "unexpected " <> "\n" <> show x  <> "\n" <> show y
+
+
+class EmptyZohoStructure a where
+  emptyZohoStructure :: a
+
+  default emptyZohoStructure :: (Generic a, GEmptyZohoStructure (Rep a)) => a
+  emptyZohoStructure = to gEmptyZohoStructure
+
+
+class GEmptyZohoStructure f where
+  gEmptyZohoStructure :: f p
+
+instance (GEmptyZohoStructure f, GEmptyZohoStructure g) => GEmptyZohoStructure (f :*: g) where
+  gEmptyZohoStructure = gEmptyZohoStructure :*: gEmptyZohoStructure
+
+instance (GEmptyZohoStructure c) => GEmptyZohoStructure (D1 x c) where
+  gEmptyZohoStructure = M1 gEmptyZohoStructure
+
+instance (GEmptyZohoStructure s) => GEmptyZohoStructure (C1 x s) where
+  gEmptyZohoStructure = M1 gEmptyZohoStructure
+
+instance (EmptyZohoStructure t) => GEmptyZohoStructure (S1 m (Rec0 t)) where
+  gEmptyZohoStructure = M1 (K1 emptyZohoStructure)
+
+instance EmptyZohoStructure (Maybe a) where
+  emptyZohoStructure = Nothing
+
+instance EmptyZohoStructure () where
+  emptyZohoStructure = ()
+
+instance EmptyZohoStructure Aeson.Value where
+  emptyZohoStructure = Aeson.Null
+
+-- omitNothingValues :: Aeson.Value -> Aeson.Value
+-- omitNothingValues v = case v of
+--   (Aeson.Object) -> _
+--   (Aeson.Array a) -> _
+--   (Aeson.String _) -> v
+--   (Aeson.Number _) -> v
+--   (Aeson.Bool _) -> v
+--   Aeson.Null -> v
+
+zohoPrefix :: (String -> String)
+           -> Aeson.Options
+zohoPrefix fn = (Casing.aesonPrefix fn){omitNothingFields=True}

@@ -67,11 +67,11 @@ apiEndpoint = ZO.mkApiEndpoint "/crm/v2/settings/modules"
 apiEndpointStr :: String
 apiEndpointStr = toS $ serializeURIRef' apiEndpoint
 
-list :: Manager
-     -> AccessToken
-     -> IO (W.Response (Either String (ResponseWrapper "modules" [Module])))
-list mgr tkn = do
-  r <- ZO.authGetJSON W.defaults apiEndpointStr mgr tkn
-  pure $ fmap eitherDecode r
+-- list :: Manager
+--      -> AccessToken
+--      -> IO (W.Response (Either String (ResponseWrapper "modules" [Module])))
+-- list mgr tkn = do
+--   r <- ZO.authGetJSON W.defaults apiEndpointStr mgr tkn
+--   pure $ fmap eitherDecode r
 
 

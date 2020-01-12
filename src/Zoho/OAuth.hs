@@ -21,7 +21,7 @@ import Network.Wreq as W
 import Control.Lens
 import Data.Aeson (FromJSON)
 import Network.Wreq.Types (Postable)
-import Zoho.Types (zohoResponseChecker)
+-- import Zoho.Types (zohoResponseChecker)
 import Data.Aeson as Aeson
 import Data.String.Conv
 
@@ -157,12 +157,18 @@ removeRequestHeader n req =
   let h = DL.deleteBy (\x y -> fst x == fst y) (n, "") (requestHeaders req)
   in req{requestHeaders=h}
 
+replaceRequestHeader :: Header
+                     -> Request
+                     -> Request
+replaceRequestHeader (hname, hval) req =
+  addRequestHeaders [(hname, hval)] $
+  removeRequestHeader hname req
+
 replaceAuthHeader :: AccessToken
                   -> Request
                   -> Request
 replaceAuthHeader (AccessToken tkn) req =
-  addRequestHeaders [(hAuthorization, "Zoho-oauthtoken " <> toS tkn)] $
-  removeRequestHeader hAuthorization req
+  replaceRequestHeader (hAuthorization, "Zoho-oauthtoken " <> toS tkn) req
 
 prepareGet :: URI
            -> [(BS.ByteString, Maybe BS.ByteString)]
@@ -179,6 +185,17 @@ preparePost :: URI
             -> BSL.ByteString
             -> Request
 preparePost = prepareWithPayload "POST"
+
+prepareFormPost :: (HT.QueryLike formdata)
+                => URI
+                -> HT.Query
+                -> RequestHeaders
+                -> formdata
+                -> Request
+prepareFormPost u q h formdata =
+  let req = replaceRequestHeader (hContentType, "application/x-www-form-urlencoded") $
+            prepareWithoutPayload "POST" u q h
+  in req{requestBody = RequestBodyBS (HT.renderQuery False $ toQuery formdata)}
 
 prepareJSONPost :: (ToJSON a)
                 => URI

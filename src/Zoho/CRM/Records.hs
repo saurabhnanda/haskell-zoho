@@ -46,8 +46,6 @@ instance ToText TriState where
 instance (StringConv Text s) => StringConv TriState s where
   strConv l x = strConv l $ toText x
 
-type ApiName = Text
-
 data Trigger = TrgWorkflow
              | TrgApproval
              | TrgBlueprint
@@ -151,18 +149,18 @@ insertRequest :: (ToJSON a)
               -> TriggerSetting
               -> Request
 insertRequest modApiName records tsetting =
-  insertUpdateHelper "POST" modApiName records tsetting Nothing
+  insertUpdateHelper "POST" modApiName Nothing records tsetting Nothing
 
 insert :: (ToJSON a, HasZoho m)
        => BS.ByteString
        -> [a]
        -> TriggerSetting
-       -> m (Either Error [ZohoResult OnlyMetaData])
+       -> m (Either Error [InsertResult])
 insert modApiName records tsetting =
   (ZM.runRequestAndParseResponse $ insertRequest modApiName records tsetting) >>= \case
   Left e ->
     pure $ Left e
-  Right (r :: ResponseWrapper "data" [ZohoResult OnlyMetaData]) ->
+  Right (r :: ResponseWrapper "data" [InsertResult]) ->
     pure $ Right $ unwrapResponse r
 
 
@@ -172,20 +170,22 @@ updateRequest :: (ToJSON a)
               -> TriggerSetting
               -> Request
 updateRequest modApiName records tsetting =
-  insertUpdateHelper "PUT" modApiName records tsetting Nothing
+  insertUpdateHelper "PUT" modApiName Nothing records tsetting Nothing
 
 
 update :: (ToJSON a, HasZoho m)
        => BS.ByteString
        -> [a]
        -> TriggerSetting
-       -> m (Either Error [ZohoResult OnlyMetaData])
+       -> m (Either Error [UpdateResult])
 update modApiName records tsetting =
-  ZM.runRequestAndParseResponse $ updateRequest modApiName records tsetting
+  (ZM.runRequestAndParseResponse $ updateRequest modApiName records tsetting) >>= \case
+  Left e ->
+    pure $ Left e
+  Right (r :: ResponseWrapper "data" [InsertResult]) ->
+    pure $ Right $ unwrapResponse r
 
-
-
-type DuplicateCheckFields = [Text]
+type DuplicateCheckFields = [ApiName]
 
 upsertRequest :: (ToJSON a)
               => BS.ByteString
@@ -194,7 +194,23 @@ upsertRequest :: (ToJSON a)
               -> DuplicateCheckFields
               -> Request
 upsertRequest modApiName records tsetting dupCheckFields =
-  insertUpdateHelper "POST" modApiName records tsetting (Just dupCheckFields)
+  insertUpdateHelper "POST" modApiName (Just "upsert") records tsetting (Just dupCheckFields)
+
+
+upsert :: (ToJSON a, HasZoho m)
+       => BS.ByteString
+       -> [a]
+       -> TriggerSetting
+       -> DuplicateCheckFields
+       -> m (Either Error [UpsertResult])
+upsert modApiName records tsetting dupCheckFields =
+  (ZM.runRequestAndParseResponse $ upsertRequest modApiName records tsetting dupCheckFields) >>= \case
+  Left e ->
+    pure $ Left e
+  Right (r :: ResponseWrapper "data" [UpsertResult]) ->
+    pure $ Right $ unwrapResponse r
+
+
 
 type TriggerWorkflow = Bool
 deleteRequest :: BS.ByteString
@@ -208,6 +224,17 @@ deleteRequest modApiName recordIds wfTrigger =
              , ("wf_trigger", Just $ if wfTrigger then "true" else "false")
              ]
 
+delete :: (HasZoho m)
+       => BS.ByteString
+       -> NE.NonEmpty Text
+       -> TriggerWorkflow
+       -> m (Either Error [DeleteResult])
+delete modApiName recordIds wfTrigger =
+  (ZM.runRequestAndParseResponse $ deleteRequest modApiName recordIds wfTrigger) >>= \case
+  Left e ->
+    pure $ Left e
+  Right (r :: ResponseWrapper "data" [DeleteResult]) ->
+    pure $ Right $ unwrapResponse r
 
 data SearchQuery = SearchEmail !Text
                  | SearchPhone !Text
@@ -245,7 +272,6 @@ searchRequest modApiName q SearchOpts{..} =
                   applyOptionalQueryParam "per_page" (show <$> soptsPerPage) []
   in prepareGet url (searchparam <> optparams) []
 
--- TODO: Handle 204 NO Content
 search :: (FromJSON a, HasZoho m)
        => BS.ByteString
        -> SearchQuery
@@ -260,12 +286,14 @@ search modApiName q opts =
 insertUpdateHelper :: forall a . (ToJSON a)
                    => String
                    -> BS.ByteString
+                   -> Maybe BS.ByteString
                    -> [a]
                    -> TriggerSetting
                    -> Maybe DuplicateCheckFields
                    -> Request
-insertUpdateHelper method modApiName records tsetting mDupCheckFields =
-  ZO.prepareWithPayload method (apiEndpoint modApiName) [] [] (Aeson.encode finalPayload)
+insertUpdateHelper method modApiName mPathFragment records tsetting mDupCheckFields =
+  let url = uriAppendPathFragment (maybe "" ("/" <>) mPathFragment) (apiEndpoint modApiName)
+  in ZO.prepareWithPayload method url [] [] (Aeson.encode finalPayload)
   where
     finalPayload :: Aeson.Value
     finalPayload =
