@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE IncoherentInstances #-}
 module Zoho.Desk.Account where
 
 import Control.Lens
@@ -7,16 +8,18 @@ import Data.Aeson as Aeson
 import Data.Aeson.TH as Aeson
 import Data.Aeson.Casing as Casing
 import Data.Text (Text)
-import Data.Time (UTCTime)
+import Data.Time (UTCTime, formatTime, defaultTimeLocale)
 import GHC.Generics
 import Zoho.Desk.Utils (accountJsonOptions)
 import Zoho.Types (EmptyZohoStructure(..), Error)
 import Zoho.Types (OrgId(..), ApiName, ResponseWrapper(..))
 import Zoho.OAuth as ZO hiding (mkApiEndpoint)
-import Zoho.Desk.Common (mkApiEndpoint, orgIdHeader)
+import Zoho.Desk.Common (mkApiEndpoint, orgIdHeader, SearchResults(..))
 import Network.HTTP.Client as HC (Request)
 import Zoho.ZohoM as ZM
+import qualified Data.Text as T
 import Prelude
+import Data.String.Conv (toS)
 
 -- TODO: include=owner
 
@@ -49,7 +52,13 @@ data Account cf = Account
 emptyAccount :: Account cf
 emptyAccount = emptyZohoStructure
 
+-- instance {-# OVERLAPS #-} FromJSON (Account ()) where
+--   parseJSON v = do
+--     a :: Account Aeson.Value <- parseJSON v
+--     pure a{accCustomFields=Just ()}
+
 $(deriveJSON accountJsonOptions ''Account)
+
 
 data ListOptions = ListOptions
   { optFrom :: !(Maybe Int)
@@ -84,3 +93,73 @@ list listOpts oid = do
     ZM.runRequestAndParseOptionalResponse (ResponseWrapper []) Prelude.id $
     listRequest listOpts oid
   pure $ fmap unwrapResponse x
+
+
+data SearchOptions = SearchOptions
+  { soptsFrom :: !(Maybe Int)
+  , soptsLimit :: !(Maybe Int)
+  , soptsId :: !(Maybe Text)
+  , soptsAccountName :: !(Maybe Text)
+  , soptsAll :: !(Maybe Bool)
+  , soptsCustomField1 :: !(Maybe (ApiName, Text))
+  , soptsCustomField2 :: !(Maybe (ApiName, Text))
+  , soptsCustomField3 :: !(Maybe (ApiName, Text))
+  , soptsCustomField4 :: !(Maybe (ApiName, Text))
+  , soptsCustomField5 :: !(Maybe (ApiName, Text))
+  , soptsCustomField6 :: !(Maybe (ApiName, Text))
+  , soptsCustomField7 :: !(Maybe (ApiName, Text))
+  , soptsCustomField8 :: !(Maybe (ApiName, Text))
+  , soptsCustomField9 :: !(Maybe (ApiName, Text))
+  , soptsCustomField10 :: !(Maybe (ApiName, Text))
+  , soptsCreatedTimeRange :: !(Maybe (UTCTime, UTCTime))
+  , soptsModifiedTimeRange :: !(Maybe (UTCTime, UTCTime))
+  , soptsSortBy :: !(Maybe ApiName)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
+emptySearchOptions :: SearchOptions
+emptySearchOptions = emptyZohoStructure
+
+searchRequest :: SearchOptions
+              -> OrgId
+              -> Request
+searchRequest SearchOptions{..} oid =
+  ZO.prepareGet (mkApiEndpoint "/accounts/search") params [orgIdHeader oid]
+  where
+    applyCfParam k x p = case x of
+      Nothing -> p
+      Just (n, v) -> (k, Just $ toS $ n <> ":" <> v):p
+
+    iso8601 = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z"
+
+    applyTimeRangeParam k Nothing p = p
+    applyTimeRangeParam k (Just (t1, t2)) p =
+      (k, Just $ toS $ (iso8601 t1) <> ":" <> (iso8601 t2)):p
+
+    params =
+      applyOptionalQueryParam "sortBy" soptsSortBy $
+      applyTimeRangeParam "modifiedTimeRange" soptsModifiedTimeRange $
+      applyTimeRangeParam "createdTimeRange" soptsCreatedTimeRange $
+      applyCfParam "customField1" soptsCustomField1 $
+      applyCfParam "customField2" soptsCustomField2 $
+      applyCfParam "customField3" soptsCustomField3 $
+      applyCfParam "customField4" soptsCustomField4 $
+      applyCfParam "customField5" soptsCustomField5 $
+      applyCfParam "customField6" soptsCustomField6 $
+      applyCfParam "customField7" soptsCustomField7 $
+      applyCfParam "customField8" soptsCustomField8 $
+      applyCfParam "customField9" soptsCustomField9 $
+      applyCfParam "customField10" soptsCustomField10 $
+      applyOptionalQueryParam "_all" ((T.toLower . toS . show) <$> soptsAll) $
+      applyOptionalQueryParam "accountName" soptsAccountName $
+      applyOptionalQueryParam "id" soptsId $
+      applyOptionalQueryParam "limit" (show <$> soptsLimit) $
+      applyOptionalQueryParam "from" (show <$> soptsFrom)
+      []
+
+search :: (HasZoho m, FromJSON cf)
+       => SearchOptions
+       -> OrgId
+       -> m (Either Error (SearchResults (Account cf)))
+search sopts oid =
+  ZM.runRequestAndParseResponse $
+  searchRequest sopts oid

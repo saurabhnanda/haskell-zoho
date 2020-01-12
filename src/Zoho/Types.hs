@@ -27,6 +27,14 @@ import Network.OAuth.OAuth2 (OAuth2Error)
 import qualified Network.OAuth.OAuth2.TokenRequest as TokenRequest (Errors)
 import Control.Lens hiding ((.=), to)
 
+data NoCustomFields = NoCustomFields deriving (Eq, Show)
+
+instance ToJSON NoCustomFields where
+  toJSON _ = Aeson.Null
+
+instance FromJSON NoCustomFields where
+  parseJSON _ = pure NoCustomFields
+
 type ApiName = Text
 
 data ResponseWrapper (s :: Symbol) a = ResponseWrapper { unwrapResponse :: a } deriving (Eq, Show)

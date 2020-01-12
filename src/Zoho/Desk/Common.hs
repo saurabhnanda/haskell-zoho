@@ -1,12 +1,15 @@
 module Zoho.Desk.Common where
 
 import Data.Aeson as Aeson
+import Data.Aeson.TH as Aeson
 import Data.ByteString as BS
 import Network.HTTP.Types (Header)
 import Zoho.Types (OrgId(..))
 import URI.ByteString as U
 import Zoho.OAuth as ZO
 import Data.String.Conv (toS)
+import Zoho.Types (zohoPrefix)
+import Data.Aeson.Casing as Casing
 
 -- data ErrorCode = ZInvalidToken
 --                | ZCodeOther !Text
@@ -34,3 +37,11 @@ mkApiEndpoint p = ZO.mkEndpoint (Host "desk.zoho.com") ("/api/v1" <> p)
 
 orgIdHeader :: OrgId -> Header
 orgIdHeader (OrgId oid) = ("orgId", toS oid)
+
+data SearchResults a = SearchResults
+  { searchData :: [a]
+  , searchCount :: !Int
+  } deriving (Eq, Show)
+
+$(Aeson.deriveJSON (zohoPrefix Casing.camelCase) ''SearchResults)
+

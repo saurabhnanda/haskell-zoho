@@ -145,7 +145,9 @@ test = serializeURIRef' $ ZO.authorizationUrl (Scope <$> ["Desk.tickets.ALL", "D
 test4 = do
   mgr <- zohoManager
   runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
-    ZDA.list @_ @() ZDA.emptyListOptions{optFrom=Just 1000} deskOrgId
+    -- ZDA.list @_ @() ZDA.emptyListOptions{optFrom=Just 1000} deskOrgId
+    ZDA.search @_ @NoCustomFields ZDA.emptySearchOptions deskOrgId
+    -- ZohoM.runRequest $ ZDA.searchRequest emptySearchOptions deskOrgId
 
     -- let r = ZO.prepareGet (ZO.mkEndpoint (Host "desk.zoho.com") "/api/v1/accounts/104785000000074190") [] [("orgId", deskOrgId)]
     -- res <- ZohoM.runRequest r{redirectCount=0}
