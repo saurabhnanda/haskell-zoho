@@ -161,5 +161,20 @@ search :: (HasZoho m, FromJSON cf)
        -> OrgId
        -> m (Either Error (SearchResults (Account cf)))
 search sopts oid =
-  ZM.runRequestAndParseResponse $
+  ZM.runRequestAndParseOptionalResponse (SearchResults [] 0) Prelude.id $
   searchRequest sopts oid
+
+createRequest :: (ToJSON cf)
+              => OrgId
+              -> Account cf
+              -> Request
+createRequest oid a =
+  ZO.prepareJSONPost (mkApiEndpoint "/accounts") [] [orgIdHeader oid] a
+
+create :: (HasZoho m, ToJSON cf, FromJSON cf)
+       => OrgId
+       -> Account cf
+       -> m (Either Error (Account cf))
+create oid a =
+  ZM.runRequestAndParseResponse $
+  createRequest oid a
