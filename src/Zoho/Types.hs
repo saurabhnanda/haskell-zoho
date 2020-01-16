@@ -172,6 +172,9 @@ instance EmptyZohoStructure () where
 instance EmptyZohoStructure Aeson.Value where
   emptyZohoStructure = Aeson.Null
 
+instance EmptyZohoStructure [a] where
+  emptyZohoStructure = []
+
 -- omitNothingValues :: Aeson.Value -> Aeson.Value
 -- omitNothingValues v = case v of
 --   (Aeson.Object) -> _

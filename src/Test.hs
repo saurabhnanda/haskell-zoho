@@ -111,7 +111,7 @@ myContact =
   let cf = emptyVlContactFields & email ?~ "saurabh5@mailinator.com"
   in Contacts.emptyContact
        & otherFields ?~ cf
-       & lastName ?~ "random shit"
+       & Contacts.lastName ?~ "random shit"
 
 
 --test3 :: IO (Maybe (Contact ()))
@@ -167,5 +167,5 @@ test5 = do
   mgr <- zohoManager
   runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
     -- ZDA.list @_ @() ZDA.emptyListOptions{optFrom=Just 1000} deskOrgId
-    let sopts = ZDC.emptyListOptions
-    ZDC.list @_ @NoCustomFields sopts deskOrgId
+    let sopts = ZDC.emptySearchOptions & email ?~ "saurabhnanda@gmail.com"
+    ZDC.search @_ @NoCustomFields sopts deskOrgId

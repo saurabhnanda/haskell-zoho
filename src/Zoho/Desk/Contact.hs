@@ -12,7 +12,8 @@ import Zoho.Desk.Utils (contactJsonOptions)
 import Zoho.Types (EmptyZohoStructure(..), Error, zohoPrefix)
 import Zoho.Types (OrgId(..), ApiName, ResponseWrapper(..))
 import Zoho.OAuth as ZO hiding (mkApiEndpoint)
-import Zoho.Desk.Common (mkApiEndpoint, orgIdHeader, SearchResults(..))
+import Zoho.Desk.Common as Common
+import Zoho.Desk.Common
 import Network.HTTP.Client as HC (Request)
 import Zoho.ZohoM as ZM
 import qualified Data.Text as T
@@ -60,7 +61,7 @@ data Contact cf = Contact
   , contactZip :: !(Maybe Text)
   , contactDescription :: !(Maybe Text)
   , contactTitle :: !(Maybe Text)
-  , contactType :: !(Maybe Text) -- TODO
+  , contactTyp :: !(Maybe Text) -- TODO
   , contactOwnerId :: !(Maybe Text) -- TODO
   , contactOwner :: Maybe Aeson.Value -- TODO
   , contactAccountId :: !(Maybe Text)
@@ -74,6 +75,7 @@ data Contact cf = Contact
   , contactCreatedTime :: !(Maybe UTCTime)
   , contactModifiedTime :: !(Maybe UTCTime)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
 
 emptyContact :: Contact cf
 emptyContact = emptyZohoStructure
@@ -95,7 +97,7 @@ listRequest :: ListOptions
             -> OrgId
             -> Request
 listRequest ListOptions{..} oid =
-  ZO.prepareGet (mkApiEndpoint "/contacts") params [orgIdHeader oid]
+  ZO.prepareGet (Common.mkApiEndpoint "/contacts") params [Common.orgIdHeader oid]
   where
     params =
       applyOptionalQueryParam "sorBy" optSortBy $
@@ -113,3 +115,109 @@ list listOpts oid = do
     ZM.runRequestAndParseOptionalResponse (ResponseWrapper []) Prelude.id $
     listRequest listOpts oid
   pure $ fmap unwrapResponse x
+
+createRequest :: (ToJSON cf)
+              => OrgId
+              -> Contact cf
+              -> Request
+createRequest oid a =
+  ZO.prepareJSONPost (Common.mkApiEndpoint "/contacts") [] [Common.orgIdHeader oid] a
+
+create :: (HasZoho m, ToJSON cf, FromJSON cf)
+       => OrgId
+       -> Contact cf
+       -> m (Either Error (Contact cf))
+create oid a =
+  ZM.runRequestAndParseResponse $
+  createRequest oid a
+
+updateRequest :: (ToJSON cf)
+              => OrgId
+              -> Text
+              -> Contact cf
+              -> Request
+updateRequest oid aid a =
+  ZO.prepareJSONPost (Common.mkApiEndpoint $ "/contacts/" <> toS aid) [] [Common.orgIdHeader oid] a{contactId=Just aid}
+
+
+update :: (HasZoho m, ToJSON cf, FromJSON cf)
+       => OrgId
+       -> Contact cf
+       -> m (Either Error (Contact cf))
+update oid a =
+  ZM.runRequestAndParseResponse $
+  createRequest oid a
+
+data SortBy = SortRelevance
+            | SortModifiedTime
+            | SortCreatedTime
+            | SortLastName
+            | SortFirstName
+            | SortOther ApiName
+            deriving (Eq, Show)
+
+data SearchOptions = SearchOptions
+  { soptsFrom :: !(Maybe Int)
+  , soptsLimit :: !(Maybe Int)
+  , soptsId :: !(Maybe Text)
+  , soptsFullName :: !(Maybe Text)
+  , soptsFirstName :: !(Maybe Text)
+  , soptsLastName :: !(Maybe Text)
+  , soptsEmail :: !(Maybe Text)
+  , soptsPhone :: !(Maybe Text)
+  , soptsMobile :: !(Maybe Text)
+  , soptsAccountName :: !(Maybe Text)
+  , soptsAll :: !(Maybe Bool)
+  , soptsCustomFields :: ![(ApiName, Text)]
+  , soptsCreatedTimeRange :: !(Maybe (UTCTime, UTCTime))
+  , soptsModifiedTimeRange :: !(Maybe (UTCTime, UTCTime))
+  , soptsSortBy :: !(Maybe (SortBy, SortDirection))
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
+$(makeLensesWith abbreviatedFields ''SearchOptions)
+
+
+emptySearchOptions :: SearchOptions
+emptySearchOptions = emptyZohoStructure
+
+
+searchRequest :: SearchOptions
+              -> OrgId
+              -> Request
+searchRequest opts@SearchOptions{..} oid =
+  ZO.prepareGet (Common.mkApiEndpoint "/contacts/search") params [Common.orgIdHeader oid]
+  where
+    applySortBy k v p = case v of
+      Nothing -> p
+      Just (sortField, sortDir) ->
+        let x = case sortField of
+                  SortRelevance -> "relevance"
+                  SortModifiedTime -> "modifiedTime"
+                  SortCreatedTime -> "createdTime"
+                  SortLastName -> "lastName"
+                  SortFirstName -> "firstName"
+                  SortOther z -> z
+            y = case sortDir of
+                  SortAsc -> x
+                  SortDesc -> "-" <> x
+        in (k, Just $ toS y):p
+
+    params =
+      applySortBy "sortBy" soptsSortBy $
+      applyOptionalQueryParam "fullName" soptsFullName $
+      applyOptionalQueryParam "firstName" soptsFirstName $
+      applyOptionalQueryParam "lastName" soptsLastName $
+      applyOptionalQueryParam "email" soptsEmail $
+      applyOptionalQueryParam "phone" soptsPhone $
+      applyOptionalQueryParam "mobile" soptsMobile $
+      applyOptionalQueryParam "accountName" soptsAccountName $
+      applyCustomFieldSearchParams opts $
+      applyCommonSearchParams opts []
+
+search :: (HasZoho m, FromJSON cf)
+       => SearchOptions
+       -> OrgId
+       -> m (Either Error (SearchResults (Contact cf)))
+search sopts oid =
+  ZM.runRequestAndParseOptionalResponse (SearchResults [] 0) Prelude.id $
+  searchRequest sopts oid

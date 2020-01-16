@@ -14,7 +14,7 @@ import Zoho.Desk.Utils (accountJsonOptions)
 import Zoho.Types (EmptyZohoStructure(..), Error)
 import Zoho.Types (OrgId(..), ApiName, ResponseWrapper(..))
 import Zoho.OAuth as ZO hiding (mkApiEndpoint)
-import Zoho.Desk.Common (mkApiEndpoint, orgIdHeader, SearchResults(..))
+import Zoho.Desk.Common (mkApiEndpoint, orgIdHeader, SearchResults(..), SortDirection(..))
 import Network.HTTP.Client as HC (Request)
 import Zoho.ZohoM as ZM
 import qualified Data.Text as T
@@ -96,12 +96,20 @@ list listOpts oid = do
   pure $ fmap unwrapResponse x
 
 
+data SortBy = SortRelevance
+            | SortModifiedTime
+            | SortCreatedTime
+            | SortAccountName
+            | SortOther ApiName
+            deriving (Eq, Show)
+
 data SearchOptions = SearchOptions
   { soptsFrom :: !(Maybe Int)
   , soptsLimit :: !(Maybe Int)
   , soptsId :: !(Maybe Text)
   , soptsAccountName :: !(Maybe Text)
   , soptsAll :: !(Maybe Bool)
+  -- , soptsCustomFields :: ![(ApiName, Text)]
   , soptsCustomField1 :: !(Maybe (ApiName, Text))
   , soptsCustomField2 :: !(Maybe (ApiName, Text))
   , soptsCustomField3 :: !(Maybe (ApiName, Text))
@@ -114,7 +122,7 @@ data SearchOptions = SearchOptions
   , soptsCustomField10 :: !(Maybe (ApiName, Text))
   , soptsCreatedTimeRange :: !(Maybe (UTCTime, UTCTime))
   , soptsModifiedTimeRange :: !(Maybe (UTCTime, UTCTime))
-  , soptsSortBy :: !(Maybe ApiName)
+  , soptsSortBy :: !(Maybe (SortBy, SortDirection))
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 emptySearchOptions :: SearchOptions
@@ -136,8 +144,22 @@ searchRequest SearchOptions{..} oid =
     applyTimeRangeParam k (Just (t1, t2)) p =
       (k, Just $ toS $ (iso8601 t1) <> ":" <> (iso8601 t2)):p
 
+    applySortBy k v p = case v of
+      Nothing -> p
+      Just (sortField, sortDir) ->
+        let x = case sortField of
+                  SortRelevance -> "relevance"
+                  SortModifiedTime -> "modifiedTime"
+                  SortCreatedTime -> "createdTime"
+                  SortAccountName -> "accountName"
+                  SortOther z -> z
+            y = case sortDir of
+                  SortAsc -> x
+                  SortDesc -> "-" <> x
+        in (k, Just $ toS y):p
+
     params =
-      applyOptionalQueryParam "sortBy" soptsSortBy $
+      applySortBy "sortBy" soptsSortBy $
       applyTimeRangeParam "modifiedTimeRange" soptsModifiedTimeRange $
       applyTimeRangeParam "createdTimeRange" soptsCreatedTimeRange $
       applyCfParam "customField1" soptsCustomField1 $
