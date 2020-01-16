@@ -28,6 +28,7 @@ import Network.HTTP.Client.TLS
 import Network.Connection (TLSSettings(..))
 import Control.Monad.IO.Class
 import Zoho.Desk.Account as ZDA
+import Zoho.Desk.Contact as ZDC
 
 zohoOAuth :: OAuth2
 zohoOAuth = mkOAuth hostUS (ClientId "1000.PCRP10N4ZKXC7F029BTTP6UT594BIH") (ClientSecret "67d211c3cb5c31df1a1899462514fba3abe152f6cb") ([uri|http://master.hetzner.vacationlabs.com/lambda/oauth-redirect|])
@@ -103,12 +104,12 @@ $(deriveJSON (zohoPrefix pascalSnakeCase) ''VLContactFields)
 emptyVlContactFields :: VLContactFields
 emptyVlContactFields = emptyZohoStructure
 
-type VLContact = Contact VLContactFields
+type VLContact = Contacts.Contact VLContactFields
 
 myContact :: VLContact
 myContact =
   let cf = emptyVlContactFields & email ?~ "saurabh5@mailinator.com"
-  in emptyContact
+  in Contacts.emptyContact
        & otherFields ?~ cf
        & lastName ?~ "random shit"
 
@@ -142,11 +143,16 @@ test3 = do
 
 test = serializeURIRef' $ ZO.authorizationUrl (Scope <$> ["Desk.tickets.ALL", "Desk.contacts.ALL", "Desk.search.READ"]) zohoOAuth
 
-test4 = do
-  mgr <- zohoManager
-  runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
-    -- ZDA.list @_ @() ZDA.emptyListOptions{optFrom=Just 1000} deskOrgId
-    ZDA.search @_ @NoCustomFields ZDA.emptySearchOptions deskOrgId
+-- test4 = do
+--   mgr <- zohoManager
+--   runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
+--     -- ZDA.list @_ @() ZDA.emptyListOptions{optFrom=Just 1000} deskOrgId
+--     let sopts = ZDA.emptySearchOptions{soptsCustomField1=Just ("cf_vl_client_id", "999999")}
+--     (ZDA.search @_ @NoCustomFields sopts deskOrgId) >>= \case
+--       Left e -> pure $ Left e
+--       Right x -> case searchData x of
+--         [] -> Prelude.error "unhandled"
+--         a:_ -> pure $ Right a
     -- ZohoM.runRequest $ ZDA.searchRequest emptySearchOptions deskOrgId
 
     -- let r = ZO.prepareGet (ZO.mkEndpoint (Host "desk.zoho.com") "/api/v1/accounts/104785000000074190") [] [("orgId", deskOrgId)]
@@ -155,3 +161,11 @@ test4 = do
     -- pure $ (eitherDecode $ responseBody res :: Either String (ZDA.Account Aeson.Value))
 
 -- code = "1000.27551c6121b80c94a637c1811e1dfe2e.39a5589989851fc272d936fa0a45d024"
+
+
+test5 = do
+  mgr <- zohoManager
+  runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
+    -- ZDA.list @_ @() ZDA.emptyListOptions{optFrom=Just 1000} deskOrgId
+    let sopts = ZDC.emptyListOptions
+    ZDC.list @_ @NoCustomFields sopts deskOrgId

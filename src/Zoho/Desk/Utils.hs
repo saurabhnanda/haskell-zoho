@@ -13,3 +13,11 @@ accountJsonOptions = zohoPrefix $ \s ->
     "AssociatedSLAIds" -> "associatedSLAIds"
     "CustomFields" -> "cf"
     x -> Casing.camelCase x
+
+contactJsonOptions :: Aeson.Options
+contactJsonOptions = zohoPrefix $ \s ->
+  case s of
+    "ZohoCRMAccount" -> "zohoCRMAccount"
+    "CustomFields" -> "cf"
+    "PhotoUrl" -> "photoURL"
+    x -> Casing.camelCase x
