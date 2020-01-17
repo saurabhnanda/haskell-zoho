@@ -14,7 +14,7 @@ import Zoho.Desk.Utils (accountJsonOptions)
 import Zoho.Types (EmptyZohoStructure(..), Error)
 import Zoho.Types (OrgId(..), ApiName, ResponseWrapper(..))
 import Zoho.OAuth as ZO hiding (mkApiEndpoint)
-import Zoho.Desk.Common (mkApiEndpoint, orgIdHeader, SearchResults(..), SortDirection(..))
+import Zoho.Desk.Common as Common
 import Network.HTTP.Client as HC (Request)
 import Zoho.ZohoM as ZM
 import qualified Data.Text as T
@@ -75,7 +75,7 @@ listRequest :: ListOptions
             -> OrgId
             -> Request
 listRequest ListOptions{..} oid =
-  ZO.prepareGet (mkApiEndpoint "/accounts") params [orgIdHeader oid]
+  ZO.prepareGet (Common.mkApiEndpoint "/accounts") params [Common.orgIdHeader oid]
   where
     params =
       applyOptionalQueryParam "sorBy" optSortBy $
@@ -109,21 +109,13 @@ data SearchOptions = SearchOptions
   , soptsId :: !(Maybe Text)
   , soptsAccountName :: !(Maybe Text)
   , soptsAll :: !(Maybe Bool)
-  -- , soptsCustomFields :: ![(ApiName, Text)]
-  , soptsCustomField1 :: !(Maybe (ApiName, Text))
-  , soptsCustomField2 :: !(Maybe (ApiName, Text))
-  , soptsCustomField3 :: !(Maybe (ApiName, Text))
-  , soptsCustomField4 :: !(Maybe (ApiName, Text))
-  , soptsCustomField5 :: !(Maybe (ApiName, Text))
-  , soptsCustomField6 :: !(Maybe (ApiName, Text))
-  , soptsCustomField7 :: !(Maybe (ApiName, Text))
-  , soptsCustomField8 :: !(Maybe (ApiName, Text))
-  , soptsCustomField9 :: !(Maybe (ApiName, Text))
-  , soptsCustomField10 :: !(Maybe (ApiName, Text))
+  , soptsCustomFields :: ![(ApiName, Text)]
   , soptsCreatedTimeRange :: !(Maybe (UTCTime, UTCTime))
   , soptsModifiedTimeRange :: !(Maybe (UTCTime, UTCTime))
   , soptsSortBy :: !(Maybe (SortBy, SortDirection))
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
+$(makeLensesWith abbreviatedFields ''SearchOptions)
 
 emptySearchOptions :: SearchOptions
 emptySearchOptions = emptyZohoStructure
@@ -131,19 +123,9 @@ emptySearchOptions = emptyZohoStructure
 searchRequest :: SearchOptions
               -> OrgId
               -> Request
-searchRequest SearchOptions{..} oid =
-  ZO.prepareGet (mkApiEndpoint "/accounts/search") params [orgIdHeader oid]
+searchRequest opts@SearchOptions{..} oid =
+  ZO.prepareGet (Common.mkApiEndpoint "/accounts/search") params [Common.orgIdHeader oid]
   where
-    applyCfParam k x p = case x of
-      Nothing -> p
-      Just (n, v) -> (k, Just $ toS $ n <> ":" <> v):p
-
-    iso8601 = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z"
-
-    applyTimeRangeParam k Nothing p = p
-    applyTimeRangeParam k (Just (t1, t2)) p =
-      (k, Just $ toS $ (iso8601 t1) <> ":" <> (iso8601 t2)):p
-
     applySortBy k v p = case v of
       Nothing -> p
       Just (sortField, sortDir) ->
@@ -160,24 +142,9 @@ searchRequest SearchOptions{..} oid =
 
     params =
       applySortBy "sortBy" soptsSortBy $
-      applyTimeRangeParam "modifiedTimeRange" soptsModifiedTimeRange $
-      applyTimeRangeParam "createdTimeRange" soptsCreatedTimeRange $
-      applyCfParam "customField1" soptsCustomField1 $
-      applyCfParam "customField2" soptsCustomField2 $
-      applyCfParam "customField3" soptsCustomField3 $
-      applyCfParam "customField4" soptsCustomField4 $
-      applyCfParam "customField5" soptsCustomField5 $
-      applyCfParam "customField6" soptsCustomField6 $
-      applyCfParam "customField7" soptsCustomField7 $
-      applyCfParam "customField8" soptsCustomField8 $
-      applyCfParam "customField9" soptsCustomField9 $
-      applyCfParam "customField10" soptsCustomField10 $
-      applyOptionalQueryParam "_all" ((T.toLower . toS . show) <$> soptsAll) $
       applyOptionalQueryParam "accountName" soptsAccountName $
-      applyOptionalQueryParam "id" soptsId $
-      applyOptionalQueryParam "limit" (show <$> soptsLimit) $
-      applyOptionalQueryParam "from" (show <$> soptsFrom)
-      []
+      applyCustomFieldSearchParams opts $
+      applyCommonSearchParams opts []
 
 search :: (HasZoho m, FromJSON cf)
        => SearchOptions
@@ -192,7 +159,7 @@ createRequest :: (ToJSON cf)
               -> Account cf
               -> Request
 createRequest oid a =
-  ZO.prepareJSONPost (mkApiEndpoint "/accounts") [] [orgIdHeader oid] a
+  ZO.prepareJSONPost (Common.mkApiEndpoint "/accounts") [] [Common.orgIdHeader oid] a
 
 create :: (HasZoho m, ToJSON cf, FromJSON cf)
        => OrgId
@@ -208,7 +175,7 @@ updateRequest :: (ToJSON cf)
               -> Account cf
               -> Request
 updateRequest oid aid a =
-  ZO.prepareJSONPost (mkApiEndpoint $ "/accounts/" <> toS aid) [] [orgIdHeader oid] a{accId=Just aid}
+  ZO.prepareJSONPost (Common.mkApiEndpoint $ "/accounts/" <> toS aid) [] [Common.orgIdHeader oid] a{accId=Just aid}
 
 
 update :: (HasZoho m, ToJSON cf, FromJSON cf)
