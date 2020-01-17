@@ -53,4 +53,14 @@ default-extensions:
 library:
   source-dirs:
     - src
-    
+  exposed-modules:
+    - Zoho.Desk.Account
+    - Zoho.Desk.Common
+    - Zoho.Desk.Contact
+    - Zoho.Desk.Types
+    - Zoho.Desk.Utils
+    - Zoho.OAuth
+    - Zoho.Types
+    - Zoho.ZohoM
+
+
