@@ -35,10 +35,6 @@ import Data.List as DL
 
 class (MonadIO m, E.MonadMask m) => HasZoho m where
   refreshAccessToken :: m (OAuth2Result TokenRequest.Errors OAuth2Token)
-
-  -- authGet :: Options -> String -> m (Response BSL.ByteString)
-  -- authPost :: (Postable a) => Options -> String -> a -> m (Response BSL.ByteString)
-
   getManager :: m Manager
   getRefreshToken :: m RefreshToken
   getAccessToken :: m AccessToken
@@ -58,7 +54,13 @@ oauth2 = oAuth2
 
 type ZohoT = ReaderT ZohoEnv
 
-runZohoT :: (MonadIO m) => Manager -> OAuth2 -> RefreshToken -> Maybe AccessToken -> ZohoT m a -> m a
+runZohoT :: (MonadIO m)
+         => Manager
+         -> OAuth2
+         -> RefreshToken
+         -> Maybe AccessToken
+         -> ZohoT m a
+         -> m a
 runZohoT mgr oa rtkn mAtkn action = do
   tknRef <- liftIO $ newIORef (rtkn, fromMaybe (AccessToken "(none)") mAtkn)
   let zenv = ZohoEnv
@@ -362,7 +364,6 @@ defaultRunRequest regenerateTknFlag req = do
       atkn <- getAccessToken
       let finalReq = req{redirectCount=0}
       r <- liftIO $ retryOnTemporaryNetworkErrors $ ZO.runRequest finalReq mgr atkn
-      traceM $ show r
       case (HT.statusCode $ HC.responseStatus r) of
         200 -> pure r
         204 -> pure r
@@ -375,9 +376,7 @@ defaultRunRequest regenerateTknFlag req = do
             else pure r
         401 ->
           case (eitherDecode $ HC.responseBody r :: Either String (ZohoResult () ())) of
-            Left e -> do
-              traceM $ show e
-              throwHttpException r
+            Left e -> throwHttpException r
             Right ZohoResult{zresCode} -> case zresCode of
               ZCodeInvalidIToken -> handleError atkn r
               _ -> throwHttpException r

@@ -1,7 +1,11 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE IncoherentInstances #-}
-module Zoho.Desk.Account where
+module Zoho.Desk.Account
+  ( module Zoho.Desk.Account
+  , module Common
+  )
+where
 
 import Control.Lens
 import Data.Aeson as Aeson
@@ -48,6 +52,8 @@ data Account cf = Account
   , accTrashed :: !(Maybe Bool)
   , accCustomFields :: !(Maybe cf)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
+$(makeLensesWith abbreviatedFields ''Account)
 
 emptyAccount :: Account cf
 emptyAccount = emptyZohoStructure
@@ -175,13 +181,14 @@ updateRequest :: (ToJSON cf)
               -> Account cf
               -> Request
 updateRequest oid aid a =
-  ZO.prepareJSONPost (Common.mkApiEndpoint $ "/accounts/" <> toS aid) [] [Common.orgIdHeader oid] a{accId=Just aid}
+  ZO.prepareJSONPatch (Common.mkApiEndpoint $ "/accounts/" <> toS aid) [] [Common.orgIdHeader oid] a{accId=Just aid}
 
 
 update :: (HasZoho m, ToJSON cf, FromJSON cf)
        => OrgId
+       -> Text
        -> Account cf
        -> m (Either Error (Account cf))
-update oid a =
+update oid aid a =
   ZM.runRequestAndParseResponse $
-  createRequest oid a
+  updateRequest oid aid a

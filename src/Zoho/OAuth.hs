@@ -103,8 +103,8 @@ mkOAuth h cid sec cback = O.OAuth2
   }
 
 newtype Scope = Scope BS.ByteString
-newtype ClientId = ClientId Text
-newtype ClientSecret = ClientSecret Text
+newtype ClientId = ClientId Text deriving (Eq, Show)
+newtype ClientSecret = ClientSecret Text deriving (Eq, Show)
 
 
 authorizationUrl :: [Scope] -> OAuth2 -> URI
@@ -186,12 +186,31 @@ prepareGet u q h =
   setQueryString q $
   parseRequest_ $ "GET " <> (toS $ serializeURIRef' u)
 
+preparePatch :: URI
+             -> [(BS.ByteString, Maybe BS.ByteString)]
+             -> RequestHeaders
+             -> BSL.ByteString
+             -> Request
+preparePatch = prepareWithPayload "PATCH"
+
+prepareJSONPatch :: (ToJSON a)
+                 => URI
+                 -> [(BS.ByteString, Maybe BS.ByteString)]
+                 -> RequestHeaders
+                 -> a
+                 -> Request
+prepareJSONPatch u q h pload =
+  prepareWithPayload "PATCH" u q h (Aeson.encode pload)
+
+
+
 preparePost :: URI
             -> [(BS.ByteString, Maybe BS.ByteString)]
             -> RequestHeaders
             -> BSL.ByteString
             -> Request
 preparePost = prepareWithPayload "POST"
+
 
 prepareFormPost :: (HT.QueryLike formdata)
                 => URI

@@ -1,5 +1,9 @@
 {-# LANGUAGE DeriveAnyClass #-}
-module Zoho.Desk.Contact where
+module Zoho.Desk.Contact
+  ( module Zoho.Desk.Contact
+  , module Common
+  )
+where
 
 import Control.Lens
 import Data.Aeson as Aeson
@@ -27,6 +31,8 @@ data CustomerHappiness = CustomerHappiness
   , happyGoodPercentage :: !(Maybe Float)
   , happyOkPercentage :: !(Maybe Float)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
+$(makeLensesWith abbreviatedFields ''CustomerHappiness)
 
 instance FromJSON CustomerHappiness where
   parseJSON = withObject "Need an Object to parse into Zoho.Desk.Contact.CustomerHappiness" $ \o -> do
@@ -76,6 +82,7 @@ data Contact cf = Contact
   , contactModifiedTime :: !(Maybe UTCTime)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
+$(makeLensesWith abbreviatedFields ''Contact)
 
 emptyContact :: Contact cf
 emptyContact = emptyZohoStructure
@@ -136,17 +143,18 @@ updateRequest :: (ToJSON cf)
               -> Text
               -> Contact cf
               -> Request
-updateRequest oid aid a =
-  ZO.prepareJSONPost (Common.mkApiEndpoint $ "/contacts/" <> toS aid) [] [Common.orgIdHeader oid] a{contactId=Just aid}
+updateRequest oid cid a =
+  ZO.prepareJSONPatch (Common.mkApiEndpoint $ "/contacts/" <> toS cid) [] [Common.orgIdHeader oid] a{contactId=Just cid}
 
 
 update :: (HasZoho m, ToJSON cf, FromJSON cf)
        => OrgId
+       -> Text
        -> Contact cf
        -> m (Either Error (Contact cf))
-update oid a =
+update oid cid a =
   ZM.runRequestAndParseResponse $
-  createRequest oid a
+  updateRequest oid cid a
 
 data SortBy = SortRelevance
             | SortModifiedTime

@@ -20,5 +20,5 @@ contactJsonOptions = zohoPrefix $ \s ->
     "ZohoCRMAccount" -> "zohoCRMAccount"
     "CustomFields" -> "cf"
     "PhotoUrl" -> "photoURL"
-    "Type" -> "Typ"
+    "Typ" -> "type"
     x -> Casing.camelCase x

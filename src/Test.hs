@@ -29,6 +29,7 @@ import Network.Connection (TLSSettings(..))
 import Control.Monad.IO.Class
 import Zoho.Desk.Account as ZDA
 import Zoho.Desk.Contact as ZDC
+import Zoho.Desk.Common (HasCustomFields(..), SearchResults(..))
 
 zohoOAuth :: OAuth2
 zohoOAuth = mkOAuth hostUS (ClientId "1000.PCRP10N4ZKXC7F029BTTP6UT594BIH") (ClientSecret "67d211c3cb5c31df1a1899462514fba3abe152f6cb") ([uri|http://master.hetzner.vacationlabs.com/lambda/oauth-redirect|])
@@ -95,23 +96,23 @@ $(makeLensesWith abbreviatedFields ''MyFields)
 -- --   }
 
 
-data VLContactFields = VLContactFields
-  { contactEmail :: !(Maybe Text)
-  } deriving (Eq, Show, Generic, EmptyZohoStructure)
-$(makeLensesWith abbreviatedFields ''VLContactFields)
-$(deriveJSON (zohoPrefix pascalSnakeCase) ''VLContactFields)
+-- data VLContactFields = VLContactFields
+--   { contactEmail :: !(Maybe Text)
+--   } deriving (Eq, Show, Generic, EmptyZohoStructure)
+-- $(makeLensesWith abbreviatedFields ''VLContactFields)
+-- $(deriveJSON (zohoPrefix pascalSnakeCase) ''VLContactFields)
 
-emptyVlContactFields :: VLContactFields
-emptyVlContactFields = emptyZohoStructure
+-- emptyVlContactFields :: VLContactFields
+-- emptyVlContactFields = emptyZohoStructure
 
-type VLContact = Contacts.Contact VLContactFields
+-- type VLContact = Contacts.Contact VLContactFields
 
-myContact :: VLContact
-myContact =
-  let cf = emptyVlContactFields & email ?~ "saurabh5@mailinator.com"
-  in Contacts.emptyContact
-       & otherFields ?~ cf
-       & Contacts.lastName ?~ "random shit"
+-- myContact :: VLContact
+-- myContact =
+--   let cf = emptyVlContactFields & email ?~ "saurabh5@mailinator.com"
+--   in Contacts.emptyContact
+--        & otherFields ?~ cf
+--        & Contacts.lastName ?~ "random shit"
 
 
 --test3 :: IO (Maybe (Contact ()))
@@ -167,5 +168,23 @@ test5 = do
   mgr <- zohoManager
   runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
     -- ZDA.list @_ @() ZDA.emptyListOptions{optFrom=Just 1000} deskOrgId
-    let sopts = ZDC.emptySearchOptions & email ?~ "saurabhnanda@gmail.com"
+    let sopts = ZDC.emptySearchOptions & ZDC.email ?~ "saurabhnanda@gmail.com"
     ZDC.search @_ @NoCustomFields sopts deskOrgId
+
+test6 = do
+  mgr <- zohoManager
+  runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
+    let sopts = ZDA.emptySearchOptions
+                & customFields .~ [("cf_vl_client_id", "999999")]
+    ZDA.search @_ @Aeson.Value sopts deskOrgId
+
+
+-- findZohoAccount :: (HasZoho m)
+--                 => OrgId
+--                 -> m [Account Aeson.Value]
+findZohoAccount orgId fn = do
+  let sopts = fn ZDA.emptySearchOptions
+              -- & customFields .~ [("cf_vl_client_id", toS $ show cid)]
+  (ZDA.search sopts orgId) >>= \case
+    Left e -> Prelude.error $ show e
+    Right SearchResults{searchData} -> pure searchData
