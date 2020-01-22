@@ -1,1 +1,1 @@
-# haskell-zoho-crm
+# haskell-zoho

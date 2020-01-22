@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Zoho.ZohoM where
 
 import Control.Monad.IO.Class

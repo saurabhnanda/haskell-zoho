@@ -1,8 +1,8 @@
-name:                haskell-zoho-crm
+name:                haskell-zoho
 version:             0.1.0.0
 #synopsis:
 #description:
-homepage:            https://github.com/saurabhnanda/haskell-zoho-crm#readme
+homepage:            https://github.com/saurabhnanda/haskell-zoho#readme
 license:             BSD3
 author:              Saurabh Nanda
 maintainer:          saurabhnanda@gmail.com
@@ -35,6 +35,7 @@ dependencies:
   - text-conversions
   - connection
   - unliftio
+  - unliftio-core
 
 default-extensions:
   - TemplateHaskell
