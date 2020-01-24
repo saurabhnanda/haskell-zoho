@@ -136,7 +136,7 @@ defaultRefreshAccessToken (RefreshToken rtkn) = do
        ]
 
   traceM $ "\n\n =======> TOKEN REFRESH RESPONSE: " <> show r
-  pure $ O.parseResponseFlexible $ handleOAuth2TokenResponse r
+  pure $ ZO.parseResponseFlexible $ handleOAuth2TokenResponse r
 
 -- addAuthHeader :: (HasZoho m)
 --               => Options

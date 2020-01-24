@@ -8,8 +8,8 @@ import Network.OAuth.OAuth2 as O hiding (refreshAccessToken)
 import Network.OAuth.OAuth2.TokenRequest as TokenRequest
 import URI.ByteString as U
 import URI.ByteString.QQ as U
-import Data.ByteString as BS
-import Data.ByteString.Lazy as BSL
+import Data.ByteString as BS hiding (putStrLn)
+import Data.ByteString.Lazy as BSL hiding (putStrLn)
 import Data.List as DL
 import Data.Coerce (coerce)
 import Data.Text as T
@@ -25,6 +25,10 @@ import Data.Aeson (FromJSON)
 import Data.Aeson as Aeson
 import Data.String.Conv
 import Zoho.Types (OrgId(..))
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as BSL
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Text.Encoding as T
 
 mkEndpoint :: Host -> BS.ByteString -> URI
 mkEndpoint h p = URI
@@ -295,6 +299,37 @@ refreshAccessToken mgr OAuth2{oauthClientId, oauthClientSecret, oauthAccessToken
     , "client_secret" W.:= oauthClientSecret
     , "grant_type" W.:= ("refresh_token" :: Text)
     ]
+
+-- | Try 'parseResponseJSON', if failed then parses the @OAuth2Result BSL.ByteString@ that contains not JSON but a Query String.
+parseResponseFlexible :: (FromJSON err, FromJSON a)
+                      => OAuth2Result err BSL.ByteString
+                      -> OAuth2Result err a
+parseResponseFlexible r = case parseResponseJSON r of
+                            Left _ -> parseResponseString r
+                            x      -> x
+
+parseResponseJSON :: (FromJSON err, FromJSON a)
+                  => OAuth2Result err BSL.ByteString
+                  -> OAuth2Result err a
+parseResponseJSON (Left b) = Left b
+parseResponseJSON (Right b) = case eitherDecode b of
+                                Left e  -> Left $ mkDecodeOAuth2Error b e
+                                Right x -> Right x
+
+-- | Parses a @OAuth2Result BSL.ByteString@ that contains not JSON but a Query String
+parseResponseString :: (FromJSON err, FromJSON a)
+                    => OAuth2Result err BSL.ByteString
+                    -> OAuth2Result err a
+parseResponseString (Left b) = Left b
+parseResponseString (Right b) = case parseQuery $ BSL.toStrict b of
+                                  [] -> Left errorMessage
+                                  a -> case fromJSON $ queryToValue a of
+                                        Error _   -> Left errorMessage
+                                        Success x -> Right x
+  where
+    queryToValue = Object . HM.fromList . DL.map paramToPair
+    paramToPair (k, mv) = (T.decodeUtf8 k, maybe Null (String . T.decodeUtf8) mv)
+    errorMessage = parseOAuth2Error b
 
 -- TODO: Retry on network errors
 withAccessToken :: Manager

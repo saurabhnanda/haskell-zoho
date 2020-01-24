@@ -40,8 +40,9 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 extra-deps:
-  - hoauth2-1.8.6@sha256:e382842f83bdea6335f83fefb476f90626a4fc6605ecd23e7bf3142fbf9fa16a,5739
   - uri-bytestring-aeson-0.1.0.7@sha256:33d83caa4704f07112564b98cb4b2e7b87f3f185e2e520c8d3444b95967d11f3,1103
+  - git: git@github.com:vacationlabs/hoauth2.git
+    commit: e1f76f0b0daf3a53c418e20c395a6560efd4b053
 
 
 # Override default flag values for local packages and extra-deps
