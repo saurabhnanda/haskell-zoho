@@ -27,31 +27,6 @@ import Data.Proxy
 import Zoho.CRM.Common.Utils (googleAdsJsonOptions, pascalSnakeCase)
 import Zoho.Types (zohoPrefix)
 
-data Approval = Approval
-  { apDelegate :: Maybe Bool -- delegate
-  , apApprove :: Maybe Bool
-  , apReject :: Maybe Bool
-  , apResubmit :: Maybe Bool
-  } deriving (Eq, Show, Generic, EmptyZohoStructure)
-
-emptyApproval :: Approval
-emptyApproval = emptyZohoStructure
-
-data ContactSpecialFields = ContactSpecialFields
-  { csfCurrencySymbol :: Maybe Text -- $currency_symbol
-  , csfState :: Maybe Text -- $state
-  , csfProcessFlow :: Maybe Bool -- $process_flow
-  , csfApproved :: Maybe Bool -- $approved
-  , csfApproval :: Approval  -- $approval
-  , csfEditable :: Maybe Bool -- $editable
-
-  -- TODO: Figure out what is "review" all about
-  -- , csfReviewProcess :: Maybe _ -- $review_process
-  -- , csvReview :: Maybe _ -- $review
-  } deriving (Eq, Show, Generic, EmptyZohoStructure)
-
-emptyContactSpeicalFields :: ContactSpecialFields
-emptyContactSpeicalFields = emptyZohoStructure
 
 type ContactId = Text
 
@@ -68,9 +43,6 @@ data Contact cf = Contact
 
 emptyContact :: Contact cf
 emptyContact = emptyZohoStructure
-
-$(deriveJSON (zohoPrefix Casing.snakeCase) ''Approval)
-$(deriveJSON (zohoPrefix (('$':) . Casing.snakeCase)) ''ContactSpecialFields)
 
 contactParser :: (Aeson.Value -> Parser (Maybe cf)) -> Aeson.Value -> Parser (Contact cf)
 contactParser otherParser v = do
@@ -113,11 +85,7 @@ instance (ToJSON cf) => ToJSON (Contact cf) where
         Nothing -> []
         Just x -> [k Aeson..= x]
 
-$(makeLensesWith abbreviatedFields ''Approval)
 $(makeLensesWith abbreviatedFields ''Contact)
-$(makeLensesWith abbreviatedFields ''ContactSpecialFields)
-
-
 
 
 list :: (FromJSON (Contact cf), HasZoho m)
@@ -162,5 +130,5 @@ delete contacts wfTrigger =
 search :: (HasZoho m, FromJSON (Contact cf))
        => SearchQuery
        -> SearchOpts
-       -> m (Either Error (Maybe (PaginatedResponse "data" [Contact cf])))
+       -> m (Either Error (PaginatedResponse "data" [Contact cf]))
 search q opts = R.search "Contacts" q opts

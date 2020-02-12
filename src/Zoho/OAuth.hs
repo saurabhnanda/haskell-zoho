@@ -29,6 +29,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text.Encoding as T
+import qualified Data.ByteString.Char8 as C8
 
 mkEndpoint :: Host -> BS.ByteString -> URI
 mkEndpoint h p = URI
@@ -366,3 +367,16 @@ applyOptionalQueryParam :: (StringConv a BS.ByteString)
 applyOptionalQueryParam k mVal qp = case mVal of
   Nothing -> qp
   Just val -> (k, Just $ toS val):qp
+
+applyOptionalCsvQueryParam :: (StringConv a BS.ByteString)
+                           => BS.ByteString
+                           -> Maybe [a]
+                           -> HT.Query
+                           -> HT.Query
+applyOptionalCsvQueryParam k mVal qp =
+  case mVal of
+    Nothing -> qp
+    Just [] -> qp
+    Just val -> (k, Just $ BS.intercalate "," $ fmap sanitize val):qp
+  where
+    sanitize bs = BS.intercalate "\\," $ C8.split ',' $ toS bs

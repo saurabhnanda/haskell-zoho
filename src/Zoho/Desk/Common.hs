@@ -17,6 +17,15 @@ import Data.Time
 import Network.HTTP.Types as HT(Query)
 import Data.List as DL
 
+type TicketId = Text
+type DepartmentId = Text
+type ContactId = Text
+type ProductId = Text
+type AccountId = Text
+type AssigneeId = Text
+type TeamId = Text
+type ViewId = Text
+
 -- data ErrorCode = ZInvalidToken
 --                | ZCodeOther !Text
 --                 deriving (Eq, Sho, Ord)
@@ -50,6 +59,7 @@ data SearchResults a = SearchResults
   } deriving (Eq, Show)
 
 $(Aeson.deriveJSON (zohoPrefix Casing.camelCase) ''SearchResults)
+-- $(makeLenses ''SearchResults)
 
 
 data SortDirection = SortAsc | SortDesc deriving (Eq, Show, Enum)
@@ -89,12 +99,18 @@ applyCommonSearchParams opts p =
   applyOptionalQueryParam "limit" (show <$> opts ^. limit) $
   applyOptionalQueryParam "from" (show <$> opts ^. from)
   p
+
+
+applyTimeRangeParam :: BS.ByteString
+                    -> Maybe (UTCTime, UTCTime)
+                    -> HT.Query
+                    -> HT.Query
+applyTimeRangeParam k Nothing p = p
+applyTimeRangeParam k (Just (t1, t2)) p =
+  (k, Just $ toS $ (iso8601 t1) <> ":" <> (iso8601 t2)):p
   where
     iso8601 = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z"
 
-    applyTimeRangeParam k Nothing p = p
-    applyTimeRangeParam k (Just (t1, t2)) p =
-      (k, Just $ toS $ (iso8601 t1) <> ":" <> (iso8601 t2)):p
 
 applyCustomFieldSearchParams :: (HasCustomFields opts [(ApiName, Text)])
                              => opts

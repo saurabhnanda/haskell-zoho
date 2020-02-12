@@ -35,6 +35,15 @@ instance ToJSON NoCustomFields where
 instance FromJSON NoCustomFields where
   parseJSON _ = pure NoCustomFields
 
+data OmitField = OmitField deriving (Eq, Show)
+
+instance ToJSON OmitField where
+  toJSON _ = Aeson.Null
+
+instance FromJSON OmitField where
+  parseJSON _ = pure OmitField
+
+
 type ApiName = Text
 
 data ResponseWrapper (s :: Symbol) a = ResponseWrapper { unwrapResponse :: a } deriving (Eq, Show)

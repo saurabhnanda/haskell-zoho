@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Zoho.CRM.Records where
 
 import Zoho.OAuth as ZO
@@ -236,9 +237,17 @@ delete modApiName recordIds wfTrigger =
   Right (r :: ResponseWrapper "data" [DeleteResult]) ->
     pure $ Right $ unwrapResponse r
 
+
+data SearchTerm = OpEquals !ApiName !Text
+                | OpStartsWith !ApiName !Text
+                | OpAnd !SearchTerm !SearchTerm
+                | OpOr !SearchTerm !SearchTerm
+                deriving (Eq, Show)
+
 data SearchQuery = SearchEmail !Text
                  | SearchPhone !Text
                  | SearchWord !Text
+                 | SearchCriteria !SearchTerm
                  deriving (Eq, Show, Generic)
 
 data SearchOpts = SearchOpts
@@ -246,15 +255,10 @@ data SearchOpts = SearchOpts
   , soptsApproved :: Maybe TriState
   , soptsPage :: Maybe Int
   , soptsPerPage :: Maybe Int
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 emptySearchOpts :: SearchOpts
-emptySearchOpts = SearchOpts
-  { soptsConverted = Nothing
-  , soptsApproved = Nothing
-  , soptsPerPage = Nothing
-  , soptsPage = Nothing
-  }
+emptySearchOpts = emptyZohoStructure
 
 searchRequest :: BS.ByteString
               -> SearchQuery
@@ -266,20 +270,39 @@ searchRequest modApiName q SearchOpts{..} =
         SearchEmail e -> [("email", Just $ toS e)]
         SearchPhone p -> [("phone", Just $ toS p)]
         SearchWord w -> [("word", Just $ toS w)]
+        SearchCriteria critera -> [("criteria", Just $ toS $ "(" <> applySearchCriteria critera <> ")")]
       optparams = applyOptionalQueryParam "converted" soptsConverted $
                   applyOptionalQueryParam "approved" soptsApproved $
                   applyOptionalQueryParam "page" (show <$> soptsPage) $
                   applyOptionalQueryParam "per_page" (show <$> soptsPerPage) []
   in prepareGet url (searchparam <> optparams) []
+  where
+    applySearchCriteria c = case c of
+      OpEquals n v -> "(" <> n <> ":equals:" <> sanitise v <> ")"
+      OpStartsWith n v -> "(" <> n <> ":starts_with:" <> sanitise v <> ")"
+      OpAnd c1 c2 -> "(" <> applySearchCriteria c1 <> " and " <> applySearchCriteria c2 <> ")"
+      OpOr c1 c2 -> "(" <> applySearchCriteria c1 <> " or " <> applySearchCriteria c2 <> ")"
+    sanitise v =
+      T.replace "," "\\," $
+      T.replace ")" "\\)" $
+      T.replace "(" "\\(" v
 
 search :: (FromJSON a, HasZoho m)
        => BS.ByteString
        -> SearchQuery
        -> SearchOpts
-       -> m (Either Error (Maybe (PaginatedResponse "data" a)))
+       -> m (Either Error (PaginatedResponse "data" [a]))
 search modApiName q opts =
-  ZM.runRequestAndParseOptionalResponse Nothing Just $
+  ZM.runRequestAndParseOptionalResponse emptyPaginatedResponse Prelude.id $
   searchRequest modApiName q opts
+  where
+    emptyPaginatedResponse = PaginatedResponse
+      { pageActualData = []
+      , pageRecordsPerPage = 0
+      , pageTotalPages = 0
+      , pageCurrentPage = 0
+      , pageMoreRecords = False
+      }
 
 -- * Internal helper function
 --

@@ -22,3 +22,17 @@ contactJsonOptions = zohoPrefix $ \s ->
     "PhotoUrl" -> "photoURL"
     "Typ" -> "type"
     x -> Casing.camelCase x
+
+ticketJsonOptions :: Aeson.Options
+ticketJsonOptions = zohoPrefix $ \s ->
+  case s of
+    "Number" -> "ticketNumber"
+    "CustomFields" -> "cf"
+    x -> Casing.camelCase x
+
+
+threadStatusJsonOptions :: Aeson.Options
+threadStatusJsonOptions = Aeson.defaultOptions {Aeson.constructorTagModifier = (fmap Char.toUpper)}
+
+threadJsonOptions :: Aeson.Options
+threadJsonOptions = zohoPrefix Casing.camelCase

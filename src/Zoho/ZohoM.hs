@@ -392,6 +392,7 @@ defaultRunRequest isAuthenticated req = do
       traceM  $ "\n\n" <> show r <> "\n\n"
       case (HT.statusCode $ HC.responseStatus r) of
         200 -> pure r
+        202 -> pure r
         204 -> pure r
         201 -> pure r
         302 -> case DL.lookup "Location" (HC.responseHeaders r) of
@@ -401,10 +402,12 @@ defaultRunRequest isAuthenticated req = do
             then handleSecurityError mAtkn r
             else pure r
         401 ->
-          case (eitherDecode $ HC.responseBody r :: Either String (ZohoResult () ())) of
-            Left e -> throwHttpException r
+          case (eitherDecode $ HC.responseBody r :: Either String (ZohoResult OmitField OmitField)) of
+            Left e -> do
+              traceM $ "UNABLE TO PARSE " <> show e
+              throwHttpException r
             Right ZohoResult{zresCode} -> case zresCode of
-              ZCodeInvalidIToken -> handleSecurityError mAtkn r
+              ZCodeInvalidToken -> handleSecurityError mAtkn r
               _ -> throwHttpException r
 
         st -> if (isRetryableStatusCode st) && (rsIterNumber == (zohoMaximumRetries - 1))

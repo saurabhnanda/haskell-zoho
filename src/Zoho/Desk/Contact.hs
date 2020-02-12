@@ -107,7 +107,7 @@ listRequest ListOptions{..} oid =
   ZO.prepareGet (Common.mkApiEndpoint "/contacts") params [Common.orgIdHeader oid]
   where
     params =
-      applyOptionalQueryParam "sorBy" optSortBy $
+      applyOptionalQueryParam "sortBy" optSortBy $
       applyOptionalQueryParam "viewId" optViewId $
       applyOptionalQueryParam "limit" (show <$> optLimit) $
       applyOptionalQueryParam "from" (show <$> optFrom)
