@@ -25,7 +25,7 @@ import qualified Control.Monad.Catch as E
 import Data.Either
 import Control.Retry as Retry
 import Network.Wreq.Types as W (ResponseChecker)
-import Debug.Trace
+-- import Debug.Trace
 import Data.Functor (void)
 import Data.Coerce (coerce)
 import qualified Zoho.OAuth as ZO
@@ -93,13 +93,12 @@ instance (MonadIO m, E.MonadMask m, MonadUnliftIO m) => HasZoho (ZohoT m) where
   --     in (x, x)
 
   refreshAccessToken failingAtkn = do
-    traceM "\n\n =======> REFRESH TOKEN ATTEMPT ========= \n\n"
     ref <- view tokenRef
     modifyMVar ref $ \curTkns@(rtkn, atkn) -> do
       if (coerce failingAtkn :: Text) /= (coerce atkn)
         -- This thread was trying to refresh the token, but it has already been
         -- refreshed by some other thread
-        then pure $ traceShowId (curTkns, Right curTkns)
+        then pure (curTkns, Right curTkns)
 
         -- This seems to tbe the first thread that is hitting this code-path. So
         -- it is responsibile for actually performing the token-refres
@@ -108,7 +107,7 @@ instance (MonadIO m, E.MonadMask m, MonadUnliftIO m) => HasZoho (ZohoT m) where
             pure (curTkns, Left e)
           Right oa@OAuth2Token{accessToken, refreshToken} ->
             let x = (fromMaybe rtkn refreshToken, accessToken)
-            in pure $ traceShow "\n\n =======> TOKEN REFRESHED ========= \n\n" (x, Right x)
+            in pure (x, Right x)
 
 
 handleOAuth2TokenResponse :: FromJSON err
@@ -123,8 +122,6 @@ defaultRefreshAccessToken :: (HasZoho m)
                           => RefreshToken
                           -> m (OAuth2Result TokenRequest.Errors OAuth2Token)
 defaultRefreshAccessToken (RefreshToken rtkn) = do
-  traceM "\n\n =======> ACTUAL REFRESH TOKEN ========= \n\n"
-
   mgr <- getManager
   OAuth2{oauthClientId, oauthClientSecret, oauthAccessTokenEndpoint } <- getOAuth2Credentials
   r <- defaultRunRequest False $
@@ -134,8 +131,6 @@ defaultRefreshAccessToken (RefreshToken rtkn) = do
        , ("client_secret", oauthClientSecret)
        , ("grant_type", "refresh_token")
        ]
-
-  traceM $ "\n\n =======> TOKEN REFRESH RESPONSE: " <> show r
   pure $ ZO.parseResponseFlexible $ handleOAuth2TokenResponse r
 
 -- addAuthHeader :: (HasZoho m)
@@ -389,7 +384,6 @@ defaultRunRequest isAuthenticated req = do
           atkn <- getAccessToken
           (Just atkn,) <$> (liftIO $ retryOnTemporaryNetworkErrors $ ZO.runRequest finalReq mgr atkn)
 
-      traceM  $ "\n\n" <> show r <> "\n\n"
       case (HT.statusCode $ HC.responseStatus r) of
         200 -> pure r
         202 -> pure r
@@ -404,7 +398,6 @@ defaultRunRequest isAuthenticated req = do
         401 ->
           case (eitherDecode $ HC.responseBody r :: Either String (ZohoResult OmitField OmitField)) of
             Left e -> do
-              traceM $ "UNABLE TO PARSE " <> show e
               throwHttpException r
             Right ZohoResult{zresCode} -> case zresCode of
               ZCodeInvalidToken -> handleSecurityError mAtkn r

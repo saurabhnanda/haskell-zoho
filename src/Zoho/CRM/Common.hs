@@ -17,7 +17,6 @@ import GHC.Generics
 import Data.Aeson.Types as Aeson (Parser)
 import Debug.Trace
 import Control.Applicative ((<|>))
-import qualified Data.Aeson.Lens as L
 
 data Approval = Approval
   { apDelegate :: Maybe Bool -- delegate
@@ -210,7 +209,7 @@ instance FromJSON UpsertAction where
   parseJSON v = (flip (withObject "Expecting Object to parse into an UpsertAction")) v $ \o -> do
     ma <- o .:? "action"
     mf <- o .:? "duplicate_field"
-    case traceShowId (ma, mf) of
+    case (ma, mf) of
       (Just "insert", _) -> pure UAInsert
       (Just "update", Just f) -> pure $ UAUpdate f
       _ -> pure $ UAOther ma mf

@@ -30,6 +30,9 @@ import Control.Monad.IO.Class
 import Zoho.Desk.Account as ZDA
 import Zoho.Desk.Contact as ZDC
 import Zoho.Desk.Common (HasCustomFields(..), SearchResults(..))
+import Zoho.Desk.Ticket as ZDT
+import Zoho.Desk.Thread as Thread
+import Zoho.Desk.Common
 
 zohoOAuth :: OAuth2
 zohoOAuth = mkOAuth hostUS (ClientId "1000.PCRP10N4ZKXC7F029BTTP6UT594BIH") (ClientSecret "67d211c3cb5c31df1a1899462514fba3abe152f6cb") ([uri|http://master.hetzner.vacationlabs.com/lambda/oauth-redirect|])
@@ -174,9 +177,34 @@ test5 = do
 test6 = do
   mgr <- zohoManager
   runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
-    let sopts = ZDA.emptySearchOptions
-                & customFields .~ [("cf_vl_client_id", "999999")]
-    ZDA.search @_ @Aeson.Value sopts deskOrgId
+    -- let sopts = ZDA.emptySearchOptions
+    --             & customFields .~ [("cf_vl_client_id", "999999")]
+    -- ZDT.list @_ @Aeson.Value ZDT.emptyListOptions deskOrgId
+    -- tkt <- ZDT.create @_ @Aeson.Value deskOrgId $
+    --   ZDT.emptyTicket
+    --   & ZDT.subject ?~ "Test subject - please ignore"
+    --   & ZDT.departmentId ?~ "104785000000006907"
+    --   & ZDT.contactId ?~ "104785000001015077"
+    --   & ZDT.priority ?~ "High"
+    --   & customFields ?~ Aeson.object [ "cf_labels" Aeson..= ("billing-other, new-tag-required"::Text) ]
+    -- Thread.create deskOrgId "104785000002472001" $
+    --   Thread.emptyThread
+    --   & Thread.channel ?~ "EMAIL"
+    --   & Thread.to ?~ "saurabhnanda@gmail.com"
+    --   & Thread.content ?~ "Some content comes here"
+    --   & Thread.fromEmailAddress ?~ "support@vacationlabs.com"
+    Thread.sendEmailReply
+      deskOrgId
+      "104785000002472001"
+      "support@vacationlabs.com"
+      "saurabhnanda+1@gmail.com"
+      ["saurabhnanda+2@gmail.com", "saurabh@vacationlabs.com"]
+      "random shit"
+      Thread.emptyThread
+      -- & Thread.contentType 
+    -- let lopts = Thread.emptyListOptions
+    --             & Thread.limit ?~ 5
+    -- Thread.list deskOrgId lopts "104785000001546131"
 
 
 -- findZohoAccount :: (HasZoho m)

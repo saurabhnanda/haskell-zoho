@@ -64,5 +64,8 @@ library:
     - Zoho.OAuth
     - Zoho.Types
     - Zoho.ZohoM
+    - Zoho.CRM.Records
+    - Zoho.CRM.Accounts
+    - Zoho.CRM.Common
 
 
