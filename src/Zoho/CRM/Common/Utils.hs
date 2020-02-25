@@ -6,7 +6,9 @@ import Data.Char as Char
 import Zoho.Types (zohoPrefix)
 
 pascalSnakeCase :: String -> String
-pascalSnakeCase s = go False s
+pascalSnakeCase s = case (go False s) of
+  [] -> []
+  x:xs -> (Char.toUpper x):xs
   where
     go _ [] = []
     go isPrevLower (x:xs) = if Char.isLower x
@@ -23,3 +25,11 @@ googleAdsJsonOptions = zohoPrefix $ \s ->
     "CostPerConversion" -> "Cost_per_Conversion"
     "ReasonForConversionFailure" -> "Reason_for_Conversion_Failure"
     x -> pascalSnakeCase x
+
+callJsonOptions :: Aeson.Options
+callJsonOptions = Aeson.defaultOptions
+  { Aeson.fieldLabelModifier = \s -> case s of
+      "callTyp" -> "Call_Type"
+      x -> pascalSnakeCase x
+  , Aeson.omitNothingFields = True
+  }

@@ -61,7 +61,7 @@ instance (ToJSON a, KnownSymbol s) => ToJSON (ResponseWrapper s a) where
 data PaginatedResponse (s :: Symbol) a = PaginatedResponse
   { pageActualData :: a
   , pageRecordsPerPage :: Int
-  , pageTotalPages :: Int
+  , pageCount :: Int
   , pageCurrentPage :: Int
   , pageMoreRecords :: Bool
   } deriving (Eq, Show)
@@ -72,7 +72,7 @@ instance (FromJSON a, KnownSymbol s) => FromJSON (PaginatedResponse s a) where
     pageActualData <- o .: (toS $ symbolVal (Proxy :: Proxy s))
     info_ <- o .: "info"
     pageRecordsPerPage <- info_ .: "per_page"
-    pageTotalPages <- info_ .: "count"
+    pageCount <- info_ .: "count"
     pageCurrentPage <- info_ .: "page"
     pageMoreRecords <- info_ .: "more_records"
     pure PaginatedResponse{..}

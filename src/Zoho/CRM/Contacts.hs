@@ -90,7 +90,7 @@ $(makeLensesWith abbreviatedFields ''Contact)
 
 list :: (FromJSON (Contact cf), HasZoho m)
      => ListOptions
-     -> m (Either Error (Maybe (PaginatedResponse "data" [Contact cf])))
+     -> m (Either Error (PaginatedResponse "data" [Contact cf]))
 list listopts = R.list "Contacts" listopts
 
 getSpecific :: (FromJSON (Contact cf), HasZoho m)

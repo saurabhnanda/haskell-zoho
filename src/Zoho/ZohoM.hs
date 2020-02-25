@@ -36,21 +36,22 @@ import Data.List as DL
 import UnliftIO.MVar
 import UnliftIO.IORef
 import Control.Monad.IO.Unlift
+import qualified Control.Concurrent.TokenBucket as TB
 
 class (MonadIO m, E.MonadMask m) => HasZoho m where
   refreshAccessToken :: AccessToken -> m (OAuth2Result TokenRequest.Errors (RefreshToken, AccessToken))
   getManager :: m Manager
   getRefreshToken :: m RefreshToken
   getAccessToken :: m AccessToken
-  -- setTokens :: (Maybe RefreshToken, Maybe AccessToken) -> m (RefreshToken, AccessToken)
   getOAuth2Credentials :: m OAuth2
   runRequest :: Request -> m (Response BSL.ByteString)
+  applyRateLimiter :: m ()
 
 data ZohoEnv = ZohoEnv
   { zenvTokenRef :: MVar (RefreshToken, AccessToken)
   , zenvManager :: Manager
   , zenvOAuth2 :: OAuth2
-  -- , zenvRefreshTokenLock :: MVar ()
+  , zenvTokenBucketWait :: IO ()
   }
 $(makeLensesWith abbreviatedFields ''ZohoEnv)
 
@@ -68,10 +69,12 @@ runZohoT :: (MonadIO m)
          -> m a
 runZohoT mgr oa rtkn mAtkn action = do
   tknRef <- newMVar (rtkn, fromMaybe (AccessToken "(none)") mAtkn)
+  tb <- liftIO TB.newTokenBucket
   let zenv = ZohoEnv
         { zenvTokenRef = tknRef
         , zenvManager = mgr
         , zenvOAuth2 = oa
+        , zenvTokenBucketWait = liftIO $ TB.tokenBucketWait tb 15 (100000 * 60 `div` 80)
         }
   runReaderT action zenv
 
@@ -85,6 +88,9 @@ instance (MonadIO m, E.MonadMask m, MonadUnliftIO m) => HasZoho (ZohoT m) where
   getAccessToken = do
     ref <- view tokenRef
     withMVar ref (pure . snd)
+  applyRateLimiter = do
+    x <- view tokenBucketWait
+    liftIO x
   -- setTokens (mrtkn, matkn) = do
   --   tknRef <- view tokenRef
   --   atomicModifyIORef' tknRef $ \(exrtkn, exatkn) ->
@@ -376,6 +382,7 @@ defaultRunRequest isAuthenticated req = do
           Right _ -> E.throwM ZohoRetriableException
 
     modifiedAction mgr RetryStatus{rsIterNumber} = do
+      void applyRateLimiter
       (mAtkn, r) <- case isAuthenticated of
         False ->
           (Nothing, ) <$> (liftIO $ retryOnTemporaryNetworkErrors $ httpLbs req mgr)

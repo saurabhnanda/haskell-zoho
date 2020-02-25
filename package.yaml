@@ -36,6 +36,7 @@ dependencies:
   - connection
   - unliftio
   - unliftio-core
+  - token-bucket
 
 default-extensions:
   - TemplateHaskell
@@ -65,7 +66,8 @@ library:
     - Zoho.Types
     - Zoho.ZohoM
     - Zoho.CRM.Records
-    - Zoho.CRM.Accounts
     - Zoho.CRM.Common
-
-
+    - Zoho.CRM.Contacts
+    - Zoho.CRM.Accounts
+    - Zoho.CRM.COQL
+    - Zoho.CRM.Activities

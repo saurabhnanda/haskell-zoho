@@ -4,10 +4,10 @@ module Zoho.CRM.Records where
 
 import Zoho.OAuth as ZO
 import Network.OAuth.OAuth2 as O
-import Network.Wreq as W hiding (Proxy(..))
+-- import Network.Wreq as W hiding (Proxy(..))
 import Data.ByteString as BS
 import Data.ByteString.Lazy as BSL
-import Network.Wreq as W
+-- import Network.Wreq as W
 import Data.Aeson as Aeson
 import Data.String.Conv
 import Network.HTTP.Client (Manager)
@@ -29,6 +29,9 @@ import GHC.Base (sconcat)
 import Data.Text.Conversions (ToText(..))
 import GHC.Generics
 
+
+type RecordId = Text
+
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint modApiName  = ZO.mkApiEndpoint $ "/crm/v2/" <> modApiName
 
@@ -37,6 +40,11 @@ apiEndpointStr modApiName = toS $ serializeURIRef' $ apiEndpoint modApiName
 
 
 data SortOrder = Asc | Desc deriving (Eq, Show, Ord, Enum)
+instance ToText SortOrder where
+  toText t = case t of
+    Asc -> "asc"
+    Desc -> "desc"
+
 data TriState = TriTrue | TriFalse | TriBoth deriving (Eq, Show, Ord, Enum)
 instance ToText TriState where
   toText t = case t of
@@ -71,34 +79,31 @@ data ListOptions = ListOptions
   , optApproved :: Maybe TriState
   , optPage :: Maybe Int
   , optPerPage :: Maybe Int
-  , optCustomViewId :: Maybe Int
-  , optTerritory :: Maybe (Int, Bool)
+  , optCustomViewId :: Maybe Text
+  , optTerritoryId :: Maybe Text
+  , optIncludeChildTerritories :: Maybe Bool
   , optModifiedAfter :: Maybe UTCTime
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
--- TODO: Make emptyZohoStructure out of this.
-defaultListOptions :: ListOptions
-defaultListOptions = ListOptions
-  { optFields = Nothing
-  , optSortOrder = Nothing
-  , optSortBy = Nothing
-  , optConverted = Nothing
-  , optApproved = Nothing
-  , optPage = Nothing
-  , optPerPage = Nothing
-  , optCustomViewId = Nothing
-  , optTerritory = Nothing
-  , optModifiedAfter = Nothing
-  }
 
+emptyListOptions :: ListOptions
+emptyListOptions = emptyZohoStructure
 
 list :: (FromJSON a, HasZoho m)
      => BS.ByteString
      -> ListOptions
-     -> m (Either Error (Maybe (PaginatedResponse "data" a)))
+     -> m (Either Error (PaginatedResponse "data" [a]))
 list modApiName listopts =
-  ZM.runRequestAndParseOptionalResponse Nothing Just $
+  ZM.runRequestAndParseOptionalResponse noResults Prelude.id $
   listRequest modApiName listopts
+  where
+    noResults = PaginatedResponse
+      { pageActualData = []
+      , pageRecordsPerPage = 0
+      , pageCount = 0
+      , pageCurrentPage = 0
+      , pageMoreRecords = False
+      }
 
 
 listRequest :: BS.ByteString
@@ -107,23 +112,23 @@ listRequest :: BS.ByteString
 listRequest modApiName ListOptions{..} =
   ZO.prepareGet (apiEndpoint modApiName) qparams headers
   where
-    applyOptionalParam k mVal opt = case mVal of
-      Nothing -> opt
-      Just val -> (k, Just $ toS val):opt
-
-    applyOptionalHeader h mVal hs = case mVal of
-      Nothing -> hs
-      Just val -> (h, toS val):hs
-
     iso8601 = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z"
 
     headers =
-      applyOptionalHeader hIfModifiedSince (fmap iso8601 optModifiedAfter)
+      applyOptionalHeader hIfModifiedSince (iso8601 <$> optModifiedAfter)
       []
 
     qparams =
-      applyOptionalParam "fields" (fmap (T.intercalate ",") optFields) $
-      applyOptionalParam "per_page" (fmap show optPerPage)
+      applyOptionalQueryParam "include_child" ((T.toLower . toS . show) <$> optIncludeChildTerritories) $
+      applyOptionalQueryParam "territory_id" optTerritoryId $
+      applyOptionalQueryParam "cvid" optCustomViewId $
+      applyOptionalQueryParam "per_page" (show <$> optPerPage) $
+      applyOptionalQueryParam "page" (show <$> optPage) $
+      applyOptionalQueryParam "approved" optApproved $
+      applyOptionalQueryParam "converted" optConverted $
+      applyOptionalQueryParam "sort_by" optSortBy $
+      applyOptionalQueryParam "sort_order" (toText <$> optSortOrder) $
+      applyOptionalCsvQueryParam "fields" optFields $
       []
 
 getSpecificRequest :: BS.ByteString
@@ -299,10 +304,49 @@ search modApiName q opts =
     emptyPaginatedResponse = PaginatedResponse
       { pageActualData = []
       , pageRecordsPerPage = 0
-      , pageTotalPages = 0
+      , pageCount = 0
       , pageCurrentPage = 0
       , pageMoreRecords = False
       }
+
+
+relatedList :: (FromJSON a, HasZoho m)
+            => BS.ByteString
+            -> RecordId
+            -> ApiName
+            -> Maybe ZonedTime
+            -> m (Either Error (PaginatedResponse "data" [a]))
+relatedList modApiName rid relModName modifiedAfter_ =
+  ZM.runRequestAndParseOptionalResponse noResults Prelude.id $
+  relatedListRequest modApiName rid relModName modifiedAfter_
+  where
+    noResults = PaginatedResponse
+      { pageActualData = []
+      , pageRecordsPerPage = 0
+      , pageCount = 0
+      , pageCurrentPage = 0
+      , pageMoreRecords = False
+      }
+
+
+relatedListRequest :: BS.ByteString
+                   -> RecordId
+                   -> ApiName
+                   -> Maybe ZonedTime
+                   -> Request
+relatedListRequest modApiName rid relModName modifiedAfter_ =
+  let url = uriAppendPathFragment
+            ("/" <> toS rid <> "/" <> toS relModName)
+            (apiEndpoint modApiName)
+  in ZO.prepareGet url [] headers
+  where
+    iso8601 = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z"
+
+    headers =
+      applyOptionalHeader hIfModifiedSince (iso8601 <$> modifiedAfter_)
+      []
+
+
 
 -- * Internal helper function
 --
@@ -334,4 +378,7 @@ insertUpdateHelper method modApiName mPathFragment records tsetting mDupCheckFie
     wrappedRecords :: ResponseWrapper "data" [a]
     wrappedRecords = ResponseWrapper records
 
+
+$(makeLensesWith abbreviatedFields ''SearchOpts)
+$(makeLensesWith abbreviatedFields ''ListOptions)
 

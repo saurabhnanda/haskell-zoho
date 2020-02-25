@@ -380,3 +380,14 @@ applyOptionalCsvQueryParam k mVal qp =
     Just val -> (k, Just $ BS.intercalate "," $ fmap sanitize val):qp
   where
     sanitize bs = BS.intercalate "\\," $ C8.split ',' $ toS bs
+
+
+applyOptionalHeader :: (StringConv a BS.ByteString)
+                    => HeaderName
+                    -> Maybe a
+                    -> RequestHeaders
+                    -> RequestHeaders
+applyOptionalHeader k mVal hs =
+  case mVal of
+    Nothing -> hs
+    Just v -> (k, toS v):hs
