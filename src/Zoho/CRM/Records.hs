@@ -94,16 +94,8 @@ list :: (FromJSON a, HasZoho m)
      -> ListOptions
      -> m (Either Error (PaginatedResponse "data" [a]))
 list modApiName listopts =
-  ZM.runRequestAndParseOptionalResponse noResults Prelude.id $
+  ZM.runRequestAndParseOptionalResponse emptyPaginatedResponse Prelude.id $
   listRequest modApiName listopts
-  where
-    noResults = PaginatedResponse
-      { pageActualData = []
-      , pageRecordsPerPage = 0
-      , pageCount = 0
-      , pageCurrentPage = 0
-      , pageMoreRecords = False
-      }
 
 
 listRequest :: BS.ByteString
@@ -300,15 +292,6 @@ search :: (FromJSON a, HasZoho m)
 search modApiName q opts =
   ZM.runRequestAndParseOptionalResponse emptyPaginatedResponse Prelude.id $
   searchRequest modApiName q opts
-  where
-    emptyPaginatedResponse = PaginatedResponse
-      { pageActualData = []
-      , pageRecordsPerPage = 0
-      , pageCount = 0
-      , pageCurrentPage = 0
-      , pageMoreRecords = False
-      }
-
 
 relatedList :: (FromJSON a, HasZoho m)
             => BS.ByteString
@@ -317,16 +300,8 @@ relatedList :: (FromJSON a, HasZoho m)
             -> Maybe ZonedTime
             -> m (Either Error (PaginatedResponse "data" [a]))
 relatedList modApiName rid relModName modifiedAfter_ =
-  ZM.runRequestAndParseOptionalResponse noResults Prelude.id $
+  ZM.runRequestAndParseOptionalResponse emptyPaginatedResponse Prelude.id $
   relatedListRequest modApiName rid relModName modifiedAfter_
-  where
-    noResults = PaginatedResponse
-      { pageActualData = []
-      , pageRecordsPerPage = 0
-      , pageCount = 0
-      , pageCurrentPage = 0
-      , pageMoreRecords = False
-      }
 
 
 relatedListRequest :: BS.ByteString

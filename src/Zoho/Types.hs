@@ -60,20 +60,29 @@ instance (ToJSON a, KnownSymbol s) => ToJSON (ResponseWrapper s a) where
 
 data PaginatedResponse (s :: Symbol) a = PaginatedResponse
   { pageActualData :: a
-  , pageRecordsPerPage :: Int
-  , pageCount :: Int
-  , pageCurrentPage :: Int
+  , pageRecordsPerPage :: Maybe Int
+  , pageCount :: Maybe Int
+  , pageCurrentPage :: Maybe Int
   , pageMoreRecords :: Bool
   } deriving (Eq, Show)
 $(makeLensesWith abbreviatedFields ''PaginatedResponse)
+
+emptyPaginatedResponse :: PaginatedResponse s [a]
+emptyPaginatedResponse = PaginatedResponse
+  { pageActualData = []
+  , pageRecordsPerPage = Nothing
+  , pageCount = Nothing
+  , pageCurrentPage = Nothing
+  , pageMoreRecords = False
+  }
 
 instance (FromJSON a, KnownSymbol s) => FromJSON (PaginatedResponse s a) where
   parseJSON = withObject "Expecting Object to parse into a PaginatedResponse" $ \o -> do
     pageActualData <- o .: (toS $ symbolVal (Proxy :: Proxy s))
     info_ <- o .: "info"
-    pageRecordsPerPage <- info_ .: "per_page"
-    pageCount <- info_ .: "count"
-    pageCurrentPage <- info_ .: "page"
+    pageRecordsPerPage <- info_ .:? "per_page"
+    pageCount <- info_ .:? "count"
+    pageCurrentPage <- info_ .:? "page"
     pageMoreRecords <- info_ .: "more_records"
     pure PaginatedResponse{..}
 

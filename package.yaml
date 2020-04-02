@@ -71,3 +71,4 @@ library:
     - Zoho.CRM.Accounts
     - Zoho.CRM.COQL
     - Zoho.CRM.Activities
+    - Zoho.CRM.Users
