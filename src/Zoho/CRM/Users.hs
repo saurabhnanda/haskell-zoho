@@ -29,6 +29,7 @@ import Data.Text.Conversions (ToText(..))
 import GHC.Generics
 
 type UserId = Text
+type ZUID = Text
 
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint path_  = ZO.mkApiEndpoint $ "/crm/v2/users" <> path_
@@ -58,7 +59,6 @@ list utype =
   ZM.runRequestAndParseOptionalResponse emptyPaginatedResponse Prelude.id $
   listRequest utype
 
-
 listRequest :: ListUserType
             -> Request
 listRequest utype =
@@ -66,3 +66,18 @@ listRequest utype =
   where
     qparams = [("type", Just $ toS $ show utype)]
 
+getSpecificRequest :: Text
+                   -> Request
+getSpecificRequest uid =
+  ZO.prepareGet (apiEndpoint $ "/" <> toS uid) [] []
+
+
+getSpecific :: forall a m . (FromJSON a, HasZoho m)
+            => UserId
+            -> m (Either Error (Maybe a))
+getSpecific uid =
+  ZM.runRequestAndParseOptionalResponse Nothing transformFn $
+  getSpecificRequest uid
+  where
+    transformFn :: ResponseWrapper "users" [a] -> Maybe a
+    transformFn d = listToMaybe $ unwrapResponse d

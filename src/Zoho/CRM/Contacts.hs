@@ -1,7 +1,11 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeApplications #-}
-module Zoho.CRM.Contacts where
+module Zoho.CRM.Contacts
+  ( module Zoho.Types
+  , module Zoho.CRM.Contacts
+  , module Common
+  ) where
 
 import Zoho.OAuth as ZO
 import Network.OAuth.OAuth2 as O
@@ -26,7 +30,8 @@ import Data.List.NonEmpty as NE
 import Data.Proxy
 import Zoho.CRM.Common.Utils (googleAdsJsonOptions)
 import Zoho.Types (zohoPrefix, pascalSnakeCase)
-
+import Prelude hiding (id)
+-- import Zoho.CRM.Common as L (record)
 
 type ContactId = Text
 

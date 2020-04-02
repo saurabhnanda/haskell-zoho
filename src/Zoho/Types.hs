@@ -122,6 +122,7 @@ instance (KnownSymbol s) => ToJSON (Reference s) where
     , (toS $ symbolVal (Proxy :: Proxy s)) .= refName
     ]
 
+$(makeLensesWith abbreviatedFields ''Reference)
 
   -- default emptyZohoStructure :: (Generic a, (GEmptyZohoStructure (Rep a))) => a
   -- emptyZohoStructure = GHC.Generics.to gEmptyZohoStructure

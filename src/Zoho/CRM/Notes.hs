@@ -4,8 +4,8 @@ module Zoho.CRM.Notes where
 import Zoho.OAuth as ZO
 import Zoho.CRM.Common
 import Zoho.Types
-import Data.ByteString as BS
-import Data.ByteString.Lazy as BSL
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
 import Data.Aeson as Aeson
 import Data.Aeson.TH as Aeson
 import Data.String.Conv
@@ -18,6 +18,7 @@ import Zoho.CRM.Records (RecordId)
 import Data.Text (Text)
 import Data.Aeson.Casing as Casing
 import Control.Lens
+import Zoho.CRM.Users (UserId, ZUID)
 
 data NoteSpecialFields = NoteSpecialFields
   { noteSeModule :: !(Maybe ApiName)
@@ -131,20 +132,24 @@ createNotes ns = do
       pure $ Right $ unwrapResponse r
 
 
+type NoteTitle = Text
+type NoteContent = Text
 createNotesSpecificRequest :: BS.ByteString
                            -> RecordId
-                           -> [NewNote]
+                           -> [(Maybe NoteTitle, NoteContent)]
                            -> Request
 createNotesSpecificRequest modApiName rid ns =
   let u = ZO.mkApiEndpoint ("/crm/v2/" <> modApiName <> "/" <> toS rid <> "/Notes")
+      payload = (flip map) ns $ \(t, c) ->
+        Aeson.object $ [ "Note_Content" Aeson..= c ] <> (maybe [] (\x -> [ "Note_Title" Aeson..= x ]) t)
   in ZO.prepareJSONPost u [] [] $
-     (ResponseWrapper ns  :: ResponseWrapper "data" [NewNote])
+     (ResponseWrapper payload  :: ResponseWrapper "data" [Aeson.Value])
 
 
 createNotesSpecific :: forall m . (HasZoho m)
                     => BS.ByteString
                     -> RecordId
-                    -> [NewNote]
+                    -> [(Maybe NoteTitle, NoteContent)]
                     -> m (Either Error [InsertResult])
 createNotesSpecific modApiName rid ns = do
   (ZM.runRequestAndParseResponse $ createNotesSpecificRequest modApiName rid ns) >>= \case
@@ -154,6 +159,10 @@ createNotesSpecific modApiName rid ns = do
       pure $ Right $ unwrapResponse r
 
 
+userTag :: UserId
+        -> ZUID
+        -> Text
+userTag uid zuid = "crm[user#" <> uid <> "#" <> zuid <> "]crm"
 
 
 $(deriveJSON (zohoPrefix (('$':) . Casing.snakeCase)) ''NoteSpecialFields)
