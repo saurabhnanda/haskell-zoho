@@ -135,29 +135,29 @@ instance EmptyZohoStructure GoogleAdsInfo where
   emptyZohoStructure = emptyGoogleAdsInfo
 
 
-data RecordMetaData = RecordMetaData
+data MetaData = MetaData
   { rmdCreatedTime :: Maybe ZonedTime
   , rmdModifiedTime :: Maybe ZonedTime
   , rmdCreatedBy :: Maybe (Reference "name")
   , rmdModifiedBy :: Maybe (Reference "name")
   , rmdOwner :: Maybe (Reference "name")
-  , rmdLastActivityTime :: Maybe ZonedTime
-  , rmdTag :: Maybe [Reference "name"]
-  , rmdLayout :: Maybe (Reference "name")
+  -- , rmdLastActivityTime :: Maybe ZonedTime
+  -- , rmdTag :: Maybe [Reference "name"]
+  -- , rmdLayout :: Maybe (Reference "name")
   } deriving (Show, Generic, EmptyZohoStructure)
 
-instance Eq RecordMetaData where
+instance Eq MetaData where
   (==) a b = (rmdCreatedBy a) == (rmdCreatedBy b) &&
              (rmdModifiedBy a) == (rmdModifiedBy b) &&
              (rmdOwner a) == (rmdOwner b) &&
-             (rmdTag a) == (rmdTag b) &&
-             (rmdLayout a) == (rmdLayout b) &&
              (fmap zonedTimeToUTC $ rmdCreatedTime a) == (fmap zonedTimeToUTC $ rmdCreatedTime b) &&
-             (fmap zonedTimeToUTC $ rmdModifiedTime a) == (fmap zonedTimeToUTC $ rmdModifiedTime b) &&
-             (fmap zonedTimeToUTC $ rmdLastActivityTime a) == (fmap zonedTimeToUTC $ rmdLastActivityTime b)
+             (fmap zonedTimeToUTC $ rmdModifiedTime a) == (fmap zonedTimeToUTC $ rmdModifiedTime b)
+--             (fmap zonedTimeToUTC $ rmdLastActivityTime a) == (fmap zonedTimeToUTC $ rmdLastActivityTime b)
+--             (rmdTag a) == (rmdTag b) &&
+--             (rmdLayout a) == (rmdLayout b) &&
 
-emptyRecordMetaData :: RecordMetaData
-emptyRecordMetaData = emptyZohoStructure
+emptyMetaData :: MetaData
+emptyMetaData = emptyZohoStructure
 
 data OnlyMetaData = OnlyMetaData
   { omdCreatedTime :: ZonedTime
@@ -267,7 +267,7 @@ instance (FromJSON metadata, FromJSON action) => FromJSON (ZohoResult metadata a
 
 $(deriveJSON (zohoPrefix pascalSnakeCase) ''VisitSummary)
 $(deriveJSON (zohoPrefix pascalSnakeCase) ''ScoreSummary)
-$(deriveJSON (zohoPrefix pascalSnakeCase) ''RecordMetaData)
+$(deriveJSON (zohoPrefix pascalSnakeCase) ''MetaData)
 $(deriveJSON googleAdsJsonOptions ''GoogleAdsInfo)
 $(deriveJSON (zohoPrefix pascalSnakeCase) ''OnlyMetaData)
 $(deriveJSON (zohoPrefix Casing.snakeCase) ''Approval)
@@ -275,7 +275,7 @@ $(deriveJSON (zohoPrefix (('$':) . Casing.snakeCase)) ''SpecialFields)
 -- $(deriveFromJSON (zohoPrefix Casing.snakeCase) ''ZohoResult)
 $(makeLensesWith abbreviatedFields ''VisitSummary)
 $(makeLensesWith abbreviatedFields ''ScoreSummary)
-$(makeLensesWith abbreviatedFields ''RecordMetaData)
+$(makeLensesWith abbreviatedFields ''MetaData)
 $(makeLensesWith abbreviatedFields ''GoogleAdsInfo)
 $(makeLensesWith abbreviatedFields ''OnlyMetaData)
 $(makeLensesWith abbreviatedFields ''Approval)

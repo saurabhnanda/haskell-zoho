@@ -51,7 +51,7 @@ data ListUserType = AllUsers
                   | CurrentUser
                   deriving (Eq, Show, Ord, Enum)
 
-list :: (FromJSON a, HasZoho m)
+list :: forall a m . (FromJSON a, HasZoho m)
      => ListUserType
      -> m (Either Error (PaginatedResponse "users" [a]))
 list utype =

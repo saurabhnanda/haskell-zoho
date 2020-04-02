@@ -33,12 +33,14 @@ import Zoho.Desk.Common (HasCustomFields(..), SearchResults(..))
 import Zoho.Desk.Ticket as ZDT
 import Zoho.Desk.Thread as Thread
 import Zoho.Desk.Common
+import Zoho.CRM.Notes as ZN
+import Zoho.CRM.Users as ZU
 
 zohoOAuth :: OAuth2
-zohoOAuth = mkOAuth hostUS (ClientId "1000.PCRP10N4ZKXC7F029BTTP6UT594BIH") (ClientSecret "67d211c3cb5c31df1a1899462514fba3abe152f6cb") ([uri|http://master.hetzner.vacationlabs.com/lambda/oauth-redirect|])
+zohoOAuth = mkOAuth hostUS (ClientId "1000.DQV1LY2MRP8OMPXMK9DLYZVPGAF1VH") (ClientSecret "92bd87d164bf6f671cc6400d20da1a0bb6a1570dde") ([uri|http://master.hetzner.vacationlabs.com/lambda/oauth-redirect|])
 
 deskRefreshToken :: RefreshToken
-deskRefreshToken = RefreshToken {rtoken = "1000.31999e915bbc7581a2810685060e8e9e.93ae10b4a89045d644ccfacab2eeb79b"}
+deskRefreshToken = RefreshToken {rtoken = "1000.f972370804111352136b551356f1037b.4d9c9aa464ad90d4a000efe3e2f46ba4"}
 
 deskOrgId :: OrgId
 deskOrgId = OrgId "104397711"
@@ -216,3 +218,18 @@ findZohoAccount orgId fn = do
   (ZDA.search sopts orgId) >>= \case
     Left e -> Prelude.error $ show e
     Right SearchResults{searchData} -> pure searchData
+
+test9 = do
+  mgr <- zohoManager
+  runZohoT mgr zohoOAuth deskRefreshToken Nothing $ do
+    -- x <- ZU.list @Aeson.Value ZU.ActiveUsers
+    -- liftIO $ Prelude.putStrLn $ show x
+    -- ZN.createNotes [ n ]
+    ZN.getSpecific "Contacts" "3064310000029082061"
+  where
+    n = NewNote
+      { newNoteTitle = Just "test note"
+      , newNoteContent = "test note crm[user#3064310000015511004#690615608]crm please tag me back if you get a notification for this note"
+      , newParentId = "3064310000029082061"
+      , newSeModule = "Contacts"
+      }

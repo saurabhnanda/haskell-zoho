@@ -32,6 +32,21 @@ import GHC.Generics
 
 type RecordId = Text
 
+data RecordMetaData = RecordMetaData
+  { rmdLastActivityTime :: Maybe ZonedTime
+  , rmdTag :: Maybe [Reference "name"]
+  , rmdLayout :: Maybe (Reference "name")
+  } deriving (Show, Generic, EmptyZohoStructure)
+
+instance Eq RecordMetaData where
+  (==) a b = (fmap zonedTimeToUTC $ rmdLastActivityTime a) == (fmap zonedTimeToUTC $ rmdLastActivityTime b) &&
+             (rmdTag a) == (rmdTag b) &&
+             (rmdLayout a) == (rmdLayout b)
+
+emptyRecordMetaData :: RecordMetaData
+emptyRecordMetaData = emptyZohoStructure
+
+
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint modApiName  = ZO.mkApiEndpoint $ "/crm/v2/" <> modApiName
 
@@ -356,4 +371,6 @@ insertUpdateHelper method modApiName mPathFragment records tsetting mDupCheckFie
 
 $(makeLensesWith abbreviatedFields ''SearchOpts)
 $(makeLensesWith abbreviatedFields ''ListOptions)
+$(deriveJSON (zohoPrefix pascalSnakeCase) ''RecordMetaData)
+$(makeLensesWith abbreviatedFields ''RecordMetaData)
 

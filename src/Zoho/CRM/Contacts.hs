@@ -34,7 +34,8 @@ data Contact cf = Contact
   { contactVisitSummary :: Maybe VisitSummary
   , contactScoreSummary :: Maybe ScoreSummary
   , contactGoogleAdsInfo :: Maybe GoogleAdsInfo
-  , contactMetaData :: Maybe RecordMetaData
+  , contactMetaData :: Maybe MetaData
+  , contactRecordMetaData :: Maybe RecordMetaData
   , contactOtherFields :: Maybe cf
   , contactId :: Maybe ContactId
   , contactLastName :: Maybe Text
@@ -50,6 +51,7 @@ contactParser otherParser v = do
   contactScoreSummary <- parseJSON v
   contactGoogleAdsInfo <- parseJSON v
   contactMetaData <- parseJSON v
+  contactRecordMetaData <- parseJSON v
   contactOtherFields <- otherParser v
   case v of
     Aeson.Object o -> do
@@ -58,11 +60,6 @@ contactParser otherParser v = do
       contactLeadSource <- o .:? "Lead_Source"
       pure Contact{..}
     x -> fail "Expecting an Object to parse into a Contact"
-
-instance {-# OVERLAPS #-} FromJSON (Contact ()) where
-  parseJSON = withObject "Exepcting a JSON object to parse into a Contact" $ \o -> do
-    let x = Object o
-    contactParser (const $ pure Nothing) x
 
 instance (FromJSON cf) => FromJSON (Contact cf) where
   parseJSON = withObject "Exepcting a JSON object to parse into a Contact" $ \o -> do
@@ -76,6 +73,7 @@ instance (ToJSON cf) => ToJSON (Contact cf) where
     unsafeMergeObjects (toJSON contactGoogleAdsInfo) $
     unsafeMergeObjects (toJSON contactMetaData) $
     unsafeMergeObjects (toJSON contactOtherFields) $
+    unsafeMergeObjects (toJSON contactRecordMetaData) $
     object $
       omitNothing "id" contactId <>
       omitNothing "Last_Name" contactLastName <>
