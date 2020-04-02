@@ -24,8 +24,8 @@ import Data.Aeson.Types as Aeson (Parser)
 import Zoho.ZohoM as ZM
 import Data.List.NonEmpty as NE
 import Data.Proxy
-import Zoho.CRM.Common.Utils (pascalSnakeCase, callJsonOptions)
-import Zoho.Types (zohoPrefix)
+import Zoho.CRM.Common.Utils (callJsonOptions)
+import Zoho.Types (zohoPrefix, pascalSnakeCase)
 
 type ActivityId = Text
 

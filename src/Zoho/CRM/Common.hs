@@ -10,8 +10,8 @@ import Data.Aeson as Aeson
 import Data.Aeson.TH
 import Data.Aeson.Casing as Casing
 import Data.Text as Text
-import Zoho.CRM.Common.Utils (googleAdsJsonOptions, pascalSnakeCase)
-import Zoho.Types (zohoPrefix)
+import Zoho.CRM.Common.Utils (googleAdsJsonOptions)
+import Zoho.Types (zohoPrefix, pascalSnakeCase)
 import Control.Lens
 import GHC.Generics
 import Data.Aeson.Types as Aeson (Parser)

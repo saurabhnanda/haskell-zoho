@@ -24,8 +24,8 @@ import Data.Aeson.Types as Aeson (Parser)
 import Zoho.ZohoM as ZM
 import Data.List.NonEmpty as NE
 import Data.Proxy
-import Zoho.CRM.Common.Utils (googleAdsJsonOptions, pascalSnakeCase)
-import Zoho.Types (zohoPrefix)
+import Zoho.CRM.Common.Utils (googleAdsJsonOptions)
+import Zoho.Types (zohoPrefix, pascalSnakeCase)
 
 type AccountId = Text
 

@@ -206,4 +206,16 @@ zohoPrefix :: (String -> String)
            -> Aeson.Options
 zohoPrefix fn = (Casing.aesonPrefix fn){omitNothingFields=True}
 
+pascalSnakeCase :: String -> String
+pascalSnakeCase s = case (go False s) of
+  [] -> []
+  x:xs -> (Char.toUpper x):xs
+  where
+    go _ [] = []
+    go isPrevLower (x:xs) = if Char.isLower x
+                            then x:(go True xs)
+                            else if isPrevLower
+                                 then '_':x:(go False xs)
+                                 else x:(go False xs)
+
 newtype OrgId = OrgId Text deriving (Eq, Show, Ord)
