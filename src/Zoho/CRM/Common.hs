@@ -95,7 +95,7 @@ instance EmptyZohoStructure ScoreSummary where
   emptyZohoStructure = emptyScoreSummary
 
 data GoogleAdsInfo = GoogleAdsInfo
-  { gadsGCLID :: Maybe Text
+  { gadsGclid :: Maybe Text
   , gadsClickType :: Maybe Text
   , gadsAdNetwork :: Maybe Text
   , gadsAdCampaignName :: Maybe Text
@@ -110,30 +110,10 @@ data GoogleAdsInfo = GoogleAdsInfo
   , gadsKeyword :: Maybe Text
   , gadsDeviceType :: Maybe Text
   , gadsSearchPartnerNetwork :: Maybe Text
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 emptyGoogleAdsInfo :: GoogleAdsInfo
-emptyGoogleAdsInfo = GoogleAdsInfo
-  { gadsGCLID = Nothing
-  , gadsClickType = Nothing
-  , gadsAdNetwork = Nothing
-  , gadsAdCampaignName = Nothing
-  , gadsAd = Nothing
-  , gadsAdGroupName = Nothing
-  , gadsClickDate = Nothing
-  , gadsCostPerClick = Nothing
-  , gadsCostPerConversion = Nothing
-  , gadsConversionExportStatus = Nothing
-  , gadsConversionExportedOn = Nothing
-  , gadsReasonForConversionFailure = Nothing
-  , gadsKeyword = Nothing
-  , gadsDeviceType = Nothing
-  , gadsSearchPartnerNetwork = Nothing
-  }
-
-instance EmptyZohoStructure GoogleAdsInfo where
-  emptyZohoStructure = emptyGoogleAdsInfo
-
+emptyGoogleAdsInfo = emptyZohoStructure
 
 data MetaData = MetaData
   { rmdCreatedTime :: Maybe ZonedTime
@@ -141,9 +121,6 @@ data MetaData = MetaData
   , rmdCreatedBy :: Maybe (Reference "name")
   , rmdModifiedBy :: Maybe (Reference "name")
   , rmdOwner :: Maybe (Reference "name")
-  -- , rmdLastActivityTime :: Maybe ZonedTime
-  -- , rmdTag :: Maybe [Reference "name"]
-  -- , rmdLayout :: Maybe (Reference "name")
   } deriving (Show, Generic, EmptyZohoStructure)
 
 instance Eq MetaData where
@@ -152,9 +129,6 @@ instance Eq MetaData where
              (rmdOwner a) == (rmdOwner b) &&
              (fmap zonedTimeToUTC $ rmdCreatedTime a) == (fmap zonedTimeToUTC $ rmdCreatedTime b) &&
              (fmap zonedTimeToUTC $ rmdModifiedTime a) == (fmap zonedTimeToUTC $ rmdModifiedTime b)
---             (fmap zonedTimeToUTC $ rmdLastActivityTime a) == (fmap zonedTimeToUTC $ rmdLastActivityTime b)
---             (rmdTag a) == (rmdTag b) &&
---             (rmdLayout a) == (rmdLayout b) &&
 
 emptyMetaData :: MetaData
 emptyMetaData = emptyZohoStructure
@@ -267,9 +241,9 @@ instance (FromJSON metadata, FromJSON action) => FromJSON (ZohoResult metadata a
 
 $(deriveJSON (zohoPrefix pascalSnakeCase) ''VisitSummary)
 $(deriveJSON (zohoPrefix pascalSnakeCase) ''ScoreSummary)
+$(deriveJSON (zohoPrefix pascalSnakeCase) ''OnlyMetaData)
 $(deriveJSON (zohoPrefix pascalSnakeCase) ''MetaData)
 $(deriveJSON googleAdsJsonOptions ''GoogleAdsInfo)
-$(deriveJSON (zohoPrefix pascalSnakeCase) ''OnlyMetaData)
 $(deriveJSON (zohoPrefix Casing.snakeCase) ''Approval)
 $(deriveJSON (zohoPrefix (('$':) . Casing.snakeCase)) ''SpecialFields)
 -- $(deriveFromJSON (zohoPrefix Casing.snakeCase) ''ZohoResult)

@@ -47,6 +47,8 @@ data Contact cf = Contact
   , contactLeadSource :: Maybe Text
   } deriving (Show, Generic, EmptyZohoStructure)
 
+$(makeLensesWith abbreviatedFields ''Contact)
+
 emptyContact :: Contact cf
 emptyContact = emptyZohoStructure
 
@@ -72,23 +74,26 @@ instance (FromJSON cf) => FromJSON (Contact cf) where
     contactParser parseJSON x
 
 instance (ToJSON cf) => ToJSON (Contact cf) where
-  toJSON Contact{..} =
+  toJSON c@Contact{..} =
     unsafeMergeObjects (toJSON contactVisitSummary) $
     unsafeMergeObjects (toJSON contactScoreSummary) $
     unsafeMergeObjects (toJSON contactGoogleAdsInfo) $
     unsafeMergeObjects (toJSON contactMetaData) $
     unsafeMergeObjects (toJSON contactOtherFields) $
     unsafeMergeObjects (toJSON contactRecordMetaData) $
+    unsafeMergeObjects gclid_ $
     object $
       omitNothing "id" contactId <>
       omitNothing "Last_Name" contactLastName <>
       omitNothing "Lead_Source" contactLeadSource
     where
+      gclid_ =
+        case c ^? googleAdsInfo . _Just . gclid . _Just of
+          Nothing -> Aeson.object []
+          Just g -> Aeson.object [ "$gclid" Aeson..= g ]
       omitNothing k v = case v of
         Nothing -> []
         Just x -> [k Aeson..= x]
-
-$(makeLensesWith abbreviatedFields ''Contact)
 
 
 list :: (FromJSON (Contact cf), HasZoho m)

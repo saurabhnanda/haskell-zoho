@@ -26,6 +26,7 @@ import Data.ByteString.Lazy as BSL
 import Network.OAuth.OAuth2 (OAuth2Error)
 import qualified Network.OAuth.OAuth2.TokenRequest as TokenRequest (Errors)
 import Control.Lens hiding ((.=), to)
+import Prelude hiding (id)
 
 data NoCustomFields = NoCustomFields deriving (Eq, Show)
 

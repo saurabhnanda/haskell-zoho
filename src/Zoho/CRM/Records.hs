@@ -145,7 +145,7 @@ getSpecificRequest modApiName recordId =
   let url = uriAppendPathFragment ("/" <> toS recordId) (apiEndpoint modApiName)
   in ZO.prepareGet url  [] []
 
-getSpecific :: (HasZoho m, FromJSON a)
+getSpecific :: forall a m . (HasZoho m, FromJSON a)
             => BS.ByteString
             -> Text
             -> m (Either Error (Maybe a))

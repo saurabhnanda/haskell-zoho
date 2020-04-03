@@ -13,6 +13,7 @@ googleAdsJsonOptions = zohoPrefix $ \s ->
     "CostPerClick" -> "Cost_per_Click"
     "CostPerConversion" -> "Cost_per_Conversion"
     "ReasonForConversionFailure" -> "Reason_for_Conversion_Failure"
+    "Gclid" -> "GCLID"
     x -> pascalSnakeCase x
 
 callJsonOptions :: Aeson.Options

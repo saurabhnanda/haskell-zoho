@@ -1,4 +1,8 @@
-module Zoho.Desk.Common where
+module Zoho.Desk.Common
+  ( module Zoho.Desk.Common
+  , module Zoho.Types
+  )
+where
 
 import Data.Aeson as Aeson
 import Data.Aeson.TH as Aeson
@@ -8,7 +12,7 @@ import Zoho.Types (OrgId(..), ApiName)
 import URI.ByteString as U
 import Zoho.OAuth as ZO
 import Data.String.Conv (toS)
-import Zoho.Types (zohoPrefix)
+import Zoho.Types
 import Data.Aeson.Casing as Casing
 import Prelude hiding (id)
 import Control.Lens hiding (from)
@@ -16,6 +20,7 @@ import Data.Text (Text)
 import Data.Time
 import Network.HTTP.Types as HT(Query)
 import Data.List as DL
+import Prelude hiding (id)
 
 type TicketId = Text
 type DepartmentId = Text
@@ -66,7 +71,7 @@ data SortDirection = SortAsc | SortDesc deriving (Eq, Show, Enum)
 
 class HasFrom s a | s -> a where from :: Lens' s a
 class HasLimit s a | s -> a where limit :: Lens' s a
-class HasId s a | s -> a where id :: Lens' s a
+-- class HasId s a | s -> a where id :: Lens' s a
 class HasAccountName s a | s -> a where accountName :: Lens' s a
 class HasAll s a | s -> a where all :: Lens' s a
 class HasCustomFields s a | s -> a where customFields :: Lens' s a
