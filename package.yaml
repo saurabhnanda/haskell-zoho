@@ -72,3 +72,4 @@ library:
     - Zoho.CRM.COQL
     - Zoho.CRM.Activities
     - Zoho.CRM.Users
+    - Zoho.CRM.Notes
