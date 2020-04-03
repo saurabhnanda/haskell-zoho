@@ -73,3 +73,6 @@ library:
     - Zoho.CRM.Activities
     - Zoho.CRM.Users
     - Zoho.CRM.Notes
+    - Zoho.Desk.Ticket
+    - Zoho.Desk.Thread
+    - Zoho.CRM.Common.Utils
