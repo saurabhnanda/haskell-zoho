@@ -124,19 +124,20 @@ handleOAuth2TokenResponse rsp =
   then Right $ HC.responseBody rsp
   else Left $ parseOAuth2Error (HC.responseBody rsp)
 
+-- TODO: We can probbaly use refreshAccessToken2 method from the new hoauth2
+-- library now
 defaultRefreshAccessToken :: (HasZoho m)
                           => RefreshToken
                           -> m (OAuth2Result TokenRequest.Errors OAuth2Token)
 defaultRefreshAccessToken (RefreshToken rtkn) = do
-  mgr <- getManager
   OAuth2{oauthClientId, oauthClientSecret, oauthAccessTokenEndpoint } <- getOAuth2Credentials
+  let formValues = [ ("refresh_token" :: Text, rtkn)
+                   , ("client_id", oauthClientId)
+                   , ("grant_type", "refresh_token")
+                   ]
+      finalFormValues = maybe formValues (\x -> ("client_secret", x):formValues) oauthClientSecret
   r <- defaultRunRequest False $
-       ZO.prepareFormPost oauthAccessTokenEndpoint [] []
-       [ ("refresh_token" :: Text, rtkn)
-       , ("client_id", oauthClientId)
-       , ("client_secret", oauthClientSecret)
-       , ("grant_type", "refresh_token")
-       ]
+       ZO.prepareFormPost oauthAccessTokenEndpoint [] [] finalFormValues
   pure $ ZO.parseResponseFlexible $ handleOAuth2TokenResponse r
 
 -- addAuthHeader :: (HasZoho m)
