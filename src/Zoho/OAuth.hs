@@ -100,7 +100,7 @@ hostCN = Host "accounts.zoho.com.cn"
 mkOAuth :: Host -> ClientId -> ClientSecret -> URI -> O.OAuth2
 mkOAuth h cid sec cback = O.OAuth2
   { oauthClientId = coerce cid
-  , oauthClientSecret = coerce sec
+  , oauthClientSecret = Just $ coerce sec
   , oauthOAuthorizeEndpoint = mkAuthEndpoint h
   , oauthAccessTokenEndpoint = mkTokenEndpoint h
   , oauthCallback = Just cback

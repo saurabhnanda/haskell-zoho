@@ -18,6 +18,7 @@ import URI.ByteString as U
 import Data.Text (Text)
 import Data.String.Conv (toS)
 import Data.Aeson as Aeson hiding (Options)
+import Data.Aeson.Lens
 import Network.HTTP.Types as HT
 import Data.Maybe
 import Zoho.Types
@@ -30,7 +31,7 @@ import Data.Functor (void)
 import Data.Coerce (coerce)
 import qualified Zoho.OAuth as ZO
 import Data.List.NonEmpty as NE
-import Zoho.CRM.Common (ZohoResult(..), ZohoCode(..))
+import Zoho.CRM.Common (ZohoResult(..))
 import Data.ByteString as BS
 import Data.List as DL
 import UnliftIO.MVar
@@ -131,7 +132,7 @@ defaultRefreshAccessToken (RefreshToken rtkn) = do
        ZO.prepareFormPost oauthAccessTokenEndpoint [] []
        [ ("refresh_token" :: Text, rtkn)
        , ("client_id", oauthClientId)
-       , ("client_secret", oauthClientSecret)
+       , ("client_secret", fromMaybe (Prelude.error "client_secret is required") oauthClientSecret)
        , ("grant_type", "refresh_token")
        ]
 
@@ -401,11 +402,11 @@ defaultRunRequest isAuthenticated req = do
             then handleSecurityError mAtkn r
             else pure r
         401 ->
-          case (eitherDecode $ HC.responseBody r :: Either String (ZohoResult () ())) of
-            Left e -> throwHttpException r
-            Right ZohoResult{zresCode} -> case zresCode of
-              ZCodeInvalidIToken -> handleSecurityError mAtkn r
-              _ -> throwHttpException r
+          case (HC.responseBody r) ^? (key "code") of
+            Just (Aeson.String "INVALID_TOKEN") -> handleSecurityError mAtkn r
+            Just (Aeson.String "INVALID_OAUTH") -> handleSecurityError mAtkn r
+            Just (Aeson.Number 57) -> handleSecurityError mAtkn r
+            _ -> throwHttpException r
 
         st -> if (isRetryableStatusCode st) && (rsIterNumber == (zohoMaximumRetries - 1))
               then E.throwM ZohoRetriableException
