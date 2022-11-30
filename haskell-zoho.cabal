@@ -1,0 +1,88 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           haskell-zoho
+version:        0.1.0.0
+category:       Web
+homepage:       https://github.com/saurabhnanda/haskell-zoho#readme
+author:         Saurabh Nanda
+maintainer:     saurabhnanda@gmail.com
+copyright:      Saurabh Nanda
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+
+library
+  exposed-modules:
+      Zoho.Desk.Account
+      Zoho.Desk.Common
+      Zoho.Desk.Contact
+      Zoho.Desk.Types
+      Zoho.Desk.Utils
+      Zoho.OAuth
+      Zoho.Types
+      Zoho.ZohoM
+      Zoho.CRM.Records
+      Zoho.CRM.Common
+      Zoho.CRM.Contacts
+      Zoho.CRM.Accounts
+      Zoho.CRM.COQL
+      Zoho.CRM.Activities
+      Zoho.CRM.Users
+      Zoho.CRM.Notes
+      Zoho.Desk.Ticket
+      Zoho.Desk.Thread
+      Zoho.CRM.Common.Utils
+  other-modules:
+      Main
+      Zoho.CRM.Modules
+      Paths_haskell_zoho
+  hs-source-dirs:
+      src
+  default-extensions:
+      TemplateHaskell
+      OverloadedStrings
+      ScopedTypeVariables
+      LambdaCase
+      NamedFieldPuns
+      RecordWildCards
+      DataKinds
+      FlexibleInstances
+      QuasiQuotes
+      DeriveGeneric
+      MultiParamTypeClasses
+      FunctionalDependencies
+      FlexibleContexts
+  build-depends:
+      aeson
+    , aeson-casing
+    , base >=4.7 && <5
+    , bytestring
+    , connection
+    , containers
+    , exceptions
+    , generic-deriving
+    , hoauth2
+    , http-client
+    , http-client-tls
+    , http-types
+    , lens
+    , lens-aeson
+    , mtl
+    , retry
+    , string-conv
+    , text
+    , text-conversions
+    , time
+    , token-bucket
+    , unliftio
+    , unliftio-core
+    , unordered-containers
+    , uri-bytestring
+    , wreq
+  default-language: Haskell2010

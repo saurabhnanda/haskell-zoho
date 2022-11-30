@@ -23,6 +23,7 @@ dependencies:
   - http-types
   - wreq
   - lens
+  - lens-aeson
   - aeson
   - aeson-casing
   - time

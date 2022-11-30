@@ -17,7 +17,7 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver: lts-12.1
+resolver: lts-18.6
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -40,9 +40,9 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 extra-deps:
-  - uri-bytestring-aeson-0.1.0.7@sha256:33d83caa4704f07112564b98cb4b2e7b87f3f185e2e520c8d3444b95967d11f3,1103
-  - git: git@github.com:vacationlabs/hoauth2.git
-    commit: e1f76f0b0daf3a53c418e20c395a6560efd4b053
+  # - uri-bytestring-aeson-0.1.0.7@sha256:33d83caa4704f07112564b98cb4b2e7b87f3f185e2e520c8d3444b95967d11f3,1103
+  # - git: git@github.com:vacationlabs/hoauth2.git
+  #   commit: e1f76f0b0daf3a53c418e20c395a6560efd4b053
   - token-bucket-0.1.0.1
 
 
