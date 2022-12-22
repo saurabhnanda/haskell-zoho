@@ -38,6 +38,7 @@ import UnliftIO.MVar
 import UnliftIO.IORef
 import Control.Monad.IO.Unlift
 import qualified Control.Concurrent.TokenBucket as TB
+import Control.Applicative ((<|>))
 
 class (MonadIO m, E.MonadMask m) => HasZoho m where
   refreshAccessToken :: AccessToken -> m (OAuth2Result TokenRequest.Errors (RefreshToken, AccessToken))
@@ -404,10 +405,11 @@ defaultRunRequest isAuthenticated req = do
             then handleSecurityError mAtkn r
             else pure r
         401 ->
-          case (HC.responseBody r) ^? (key "code") of
+          case ((HC.responseBody r) ^? (key "code")) <|> ((HC.responseBody r) ^? (key "data") . (key "errorCode")) of
             Just (Aeson.String "INVALID_TOKEN") -> handleSecurityError mAtkn r
             Just (Aeson.String "INVALID_OAUTH") -> handleSecurityError mAtkn r
             Just (Aeson.Number 57) -> handleSecurityError mAtkn r
+            Just (Aeson.Number 8535) -> handleSecurityError mAtkn r
             _ -> throwHttpException r
         st -> if (isRetryableStatusCode st) && (rsIterNumber == (zohoMaximumRetries - 1))
               then E.throwM ZohoRetriableException
