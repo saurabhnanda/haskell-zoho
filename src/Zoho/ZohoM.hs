@@ -405,7 +405,7 @@ defaultRunRequest isAuthenticated req = do
             then handleSecurityError mAtkn r
             else pure r
         401 ->
-          case ((HC.responseBody r) ^? (key "code")) <|> ((HC.responseBody r) ^? (key "data") . (key "errorCode")) of
+          case ((HC.responseBody r) ^? (key "code")) <|> ((HC.responseBody r) ^? (key "errorCode")) <|> ((HC.responseBody r) ^? (key "data") . (key "errorCode")) of
             Just (Aeson.String "INVALID_TOKEN") -> handleSecurityError mAtkn r
             Just (Aeson.String "INVALID_OAUTH") -> handleSecurityError mAtkn r
             Just (Aeson.Number 57) -> handleSecurityError mAtkn r
