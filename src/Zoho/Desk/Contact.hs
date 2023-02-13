@@ -69,9 +69,9 @@ data Contact cf = Contact
   , contactTitle :: !(Maybe Text)
   , contactTyp :: !(Maybe Text) -- TODO
   , contactOwnerId :: !(Maybe Text) -- TODO
-  , contactOwner :: Maybe Aeson.Value -- TODO
+  , contactOwner :: !(Maybe Aeson.Value) -- TODO
   , contactAccountId :: !(Maybe Text)
-  , contatZohoCRMContact :: Aeson.Value -- TODO
+  , contatZohoCRMContact :: !(Maybe Aeson.Value) -- TODO
   , contactCustomerHappiness :: !(Maybe CustomerHappiness)
   , contactIsDeleted :: !(Maybe Bool)
   , contactIsTrashed :: !(Maybe Bool)
