@@ -27,6 +27,7 @@ import Network.OAuth.OAuth2 (OAuth2Error)
 import qualified Network.OAuth.OAuth2.TokenRequest as TokenRequest (Errors)
 import Control.Lens hiding ((.=), to)
 import Prelude hiding (id)
+import Control.Applicative ((<|>))
 
 data NoCustomFields = NoCustomFields deriving (Eq, Show)
 
@@ -80,11 +81,11 @@ emptyPaginatedResponse = PaginatedResponse
 instance (FromJSON a, KnownSymbol s) => FromJSON (PaginatedResponse s a) where
   parseJSON = withObject "Expecting Object to parse into a PaginatedResponse" $ \o -> do
     pageActualData <- o .: (toS $ symbolVal (Proxy :: Proxy s))
-    info_ <- o .: "info"
+    info_ <- (o .: "info") <|> (o .: "page_context")
     pageRecordsPerPage <- info_ .:? "per_page"
     pageCount <- info_ .:? "count"
     pageCurrentPage <- info_ .:? "page"
-    pageMoreRecords <- info_ .: "more_records"
+    pageMoreRecords <- (info_ .: "more_records") <|> (info_ .: "has_more_page")
     pure PaginatedResponse{..}
 
 moduleJsonFieldNameMapping :: String -> String
