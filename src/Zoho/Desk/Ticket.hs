@@ -18,17 +18,19 @@ import Zoho.Desk.Utils (ticketJsonOptions)
 import Zoho.OAuth as ZO
 import Network.HTTP.Client as HC (Request)
 import Zoho.Desk.Common as Common
+import Zoho.Desk.Contact (Contact)
 import Zoho.ZohoM as ZM
 import Data.String.Conv (toS)
 import Control.Monad (join)
 import Text.Read (readMaybe)
 
-data TicketPoly stringInt cf = Ticket
+data TicketPoly stringInt ticketCf contactCf = Ticket
   { ticketId :: !(Maybe TicketId)
   , ticketTicketNumber :: !(Maybe Text)
   , ticketSubject :: !(Maybe Text)
   , ticketDepartmentId :: !(Maybe Text)
   , ticketContactId :: !(Maybe Text)
+  , ticketContact :: !(Maybe (Contact contactCf))
   , ticketProductId :: !(Maybe Text)
   , ticketUploads :: !(Maybe OmitField) -- TODO
   , ticketEmail :: !(Maybe Text)
@@ -42,7 +44,7 @@ data TicketPoly stringInt cf = Ticket
   , ticketPriority :: !(Maybe Text)
   , ticketChannel :: !(Maybe Text)
   , ticketClassification :: !(Maybe Text)
-  , ticketCustomFields :: !(Maybe cf)
+  , ticketCustomFields :: !(Maybe ticketCf)
   , ticketWebUrl :: !(Maybe Text)
   , ticketTeamId :: !(Maybe TeamId)
   , ticketThreadCount :: !(Maybe stringInt)
@@ -63,18 +65,18 @@ data TicketPoly stringInt cf = Ticket
 
 type Ticket = TicketPoly Int
 
-emptyTicket :: Ticket cf
+emptyTicket :: Ticket ticketCf contactCf
 emptyTicket = emptyZohoStructure
 
 $(makeLensesWith abbreviatedFields ''TicketPoly)
 
-instance (FromJSON cf, FromJSON stringInt) => FromJSON (TicketPoly stringInt cf) where
+instance (FromJSON ticketCf, FromJSON contactCf, FromJSON stringInt) => FromJSON (TicketPoly stringInt ticketCf contactCf) where
   parseJSON = genericParseJSON ticketJsonOptions
 
-instance {-# OVERLAPS #-} (FromJSON cf) => FromJSON (TicketPoly Int cf) where
+instance {-# OVERLAPS #-} (FromJSON ticketCf, FromJSON contactCf) => FromJSON (TicketPoly Int ticketCf contactCf) where
   parseJSON v = fmap convertStringToInt (genericParseJSON ticketJsonOptions v)
     where
-      convertStringToInt :: TicketPoly String cf -> TicketPoly Int cf
+      convertStringToInt :: TicketPoly String ticketCf contactCf -> TicketPoly Int ticketCf contactCf
       convertStringToInt tkt@Ticket{..} =
         tkt { ticketThreadCount = join $ fmap readMaybe ticketThreadCount
             , ticketCommentCount = join $ fmap readMaybe ticketCommentCount
@@ -84,13 +86,13 @@ instance {-# OVERLAPS #-} (FromJSON cf) => FromJSON (TicketPoly Int cf) where
             , ticketApprovalCount = join $ fmap readMaybe ticketApprovalCount
             }
 
-instance (ToJSON cf, ToJSON stringInt) => ToJSON (TicketPoly stringInt cf) where
+instance (ToJSON ticketCf, ToJSON contactCf, ToJSON stringInt) => ToJSON (TicketPoly stringInt ticketCf contactCf) where
   toJSON = genericToJSON ticketJsonOptions
 
-instance {-# OVERLAPS #-} (ToJSON cf) => ToJSON (TicketPoly Int cf) where
+instance {-# OVERLAPS #-} (ToJSON ticketCf, ToJSON contactCf) => ToJSON (TicketPoly Int ticketCf contactCf) where
   toJSON = (genericToJSON ticketJsonOptions) . convertIntToText
     where
-      convertIntToText :: TicketPoly Int cf -> TicketPoly String cf
+      convertIntToText :: TicketPoly Int ticketCf contactCf -> TicketPoly String ticketCf contactCf
       convertIntToText x@Ticket{..} =
         x { ticketThreadCount = show <$> ticketThreadCount
           , ticketCommentCount = show <$> ticketCommentCount
@@ -145,28 +147,28 @@ listRequest ListOptions{..} oid =
 -- Sort by a specific attribute: responseDueDate or customerResponseTime or createdTime or ticketNumber. The default sorting order is ascending. A - prefix denotes descending order of sorting.
 
 
-list :: forall m cf . (HasZoho m, FromJSON cf)
+list :: forall m ticketCf contactCf . (HasZoho m, FromJSON ticketCf, FromJSON contactCf)
      => ListOptions
      -> OrgId
-     -> m (Either Error [Ticket cf])
+     -> m (Either Error [Ticket ticketCf contactCf])
 list listOpts oid = do
-  x :: Either Error (ResponseWrapper "data" [Ticket cf]) <-
+  x :: Either Error (ResponseWrapper "data" [Ticket ticketCf contactCf]) <-
     ZM.runRequestAndParseOptionalResponse (ResponseWrapper []) Prelude.id $
     listRequest listOpts oid
   pure $ fmap unwrapResponse x
 
 
-createRequest :: (ToJSON cf)
+createRequest :: (ToJSON ticketCf, ToJSON contactCf)
               => OrgId
-              -> Ticket cf
+              -> Ticket ticketCf contactCf
               -> Request
 createRequest oid a =
   ZO.prepareJSONPost (Common.mkApiEndpoint "/tickets") [] [Common.orgIdHeader oid] a
 
-create :: (HasZoho m, ToJSON cf, FromJSON cf)
+create :: (HasZoho m, ToJSON ticketCf, FromJSON ticketCf, ToJSON contactCf, FromJSON contactCf)
        => OrgId
-       -> Ticket cf
-       -> m (Either Error (Ticket cf))
+       -> Ticket ticketCf contactCf
+       -> m (Either Error (Ticket ticketCf contactCf))
 create oid a =
   ZM.runRequestAndParseResponse $
   createRequest oid a
@@ -263,10 +265,10 @@ searchRequest oid opts@SearchOptions{..} =
       applyCommonSearchParams opts []
 
 
-search :: (HasZoho m, FromJSON cf)
+search :: (HasZoho m, FromJSON ticketCf, FromJSON contactCf)
        => OrgId
        -> SearchOptions
-       -> m (Either Error (SearchResults (Ticket cf)))
+       -> m (Either Error (SearchResults (Ticket ticketCf contactCf)))
 search oid sopts =
   ZM.runRequestAndParseOptionalResponse (SearchResults [] 0) Prelude.id $
   searchRequest oid sopts
