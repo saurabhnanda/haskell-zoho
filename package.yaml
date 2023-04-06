@@ -66,6 +66,9 @@ library:
     - Zoho.OAuth
     - Zoho.Types
     - Zoho.ZohoM
+    - Zoho.Books.Contact
+    - Zoho.Books.Invoice
+    - Zoho.Books.Account
     - Zoho.CRM.Records
     - Zoho.CRM.Common
     - Zoho.CRM.Contacts

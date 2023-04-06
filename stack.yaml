@@ -45,7 +45,6 @@ extra-deps:
   #   commit: e1f76f0b0daf3a53c418e20c395a6560efd4b053
   - token-bucket-0.1.0.1
 
-
 # Override default flag values for local packages and extra-deps
 # flags: {}
 

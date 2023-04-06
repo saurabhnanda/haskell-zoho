@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -27,6 +27,9 @@ library
       Zoho.OAuth
       Zoho.Types
       Zoho.ZohoM
+      Zoho.Books.Contact
+      Zoho.Books.Invoice
+      Zoho.Books.Account
       Zoho.CRM.Records
       Zoho.CRM.Common
       Zoho.CRM.Contacts
@@ -40,6 +43,7 @@ library
       Zoho.CRM.Common.Utils
   other-modules:
       Main
+      Zoho.Books.Common
       Zoho.CRM.Modules
       Paths_haskell_zoho
   hs-source-dirs:
