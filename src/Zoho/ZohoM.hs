@@ -76,7 +76,7 @@ runZohoT mgr oa rtkn mAtkn action = do
         { zenvTokenRef = tknRef
         , zenvManager = mgr
         , zenvOAuth2 = oa
-        , zenvTokenBucketWait = liftIO $ TB.tokenBucketWait tb 15 (100000 * 60 `div` 80)
+        , zenvTokenBucketWait = liftIO $ TB.tokenBucketWait tb 10 (100000 * 60 `div` 50)
         }
   runReaderT action zenv
 

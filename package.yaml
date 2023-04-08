@@ -53,6 +53,7 @@ default-extensions:
   - MultiParamTypeClasses
   - FunctionalDependencies
   - FlexibleContexts
+  - DerivingVia
 
 library:
   source-dirs:
@@ -69,6 +70,7 @@ library:
     - Zoho.Books.Contact
     - Zoho.Books.Invoice
     - Zoho.Books.Account
+    - Zoho.Books.Expense
     - Zoho.CRM.Records
     - Zoho.CRM.Common
     - Zoho.CRM.Contacts

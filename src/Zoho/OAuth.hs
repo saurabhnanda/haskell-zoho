@@ -235,6 +235,7 @@ prepareJSONPost :: (ToJSON a)
                 -> a
                 -> Request
 prepareJSONPost u q h pload =
+  replaceRequestHeader (hContentType, "application/json") $
   prepareWithPayload "POST" u q h (Aeson.encode pload)
 
 prepareDelete :: URI

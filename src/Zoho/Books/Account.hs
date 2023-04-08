@@ -19,13 +19,13 @@ import Network.HTTP.Client as HC (Request)
 import qualified Data.HashMap.Lazy as HML
 -- import Data.String.Conv
 
-newtype AccountId = AccountId { rawAccountId :: Text } deriving (Eq, Show, Generic, Ord)
+newtype AccountId = AccountId { rawAccountId :: Text } 
+  deriving (Eq, Show, Generic, Ord)
+  deriving ToJSON via Text
+  deriving FromJSON via Text
+  deriving ToJSONKey via Text
+  deriving FromJSONKey via Text
 
-instance ToJSON AccountId where
-  toJSON = toJSON . rawAccountId
-
-instance FromJSON AccountId where
-  parseJSON = withText "Expecting text to parse into AccountId" $ \t -> pure $ AccountId t
 
 data AccountType = OtherAsset | OtherCurrentAsset | Cash | Bank | FixedAsset | OtherCurrentLiability | CreditCard | LongTermLiability | OtherLiability | Equity | Income | OtherIncome | Expense | CostOfGoodsSold | OtherExpense | AccountsReceivable | AccountsPayable deriving (Eq, Show, Generic, Ord, Enum, Bounded)
 
@@ -47,7 +47,8 @@ instance FromJSON CustomField where
   parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase)
 
 data Account cf = Account
-  { accAccountName :: !(Maybe Text)
+  { accAccountId :: !(Maybe AccountId)
+  , accAccountName :: !(Maybe Text)
   , accAccountCode :: !(Maybe Text)
   , accAccountType :: !(Maybe Text)
   , accCurrencyId :: !(Maybe Text)
@@ -87,7 +88,7 @@ createRequest orgId acc =
   in ZO.prepareJSONPost (Common.mkApiEndpoint "/chartofaccounts") params [] acc
 
 create :: (HasZoho m, ToJSON cf, FromJSON cf) => OrgId -> Account cf -> m (Either Error (Account cf))
-create orgId acc = 
+create orgId acc = do
   ZM.runRequestAndParseResponse $ createRequest orgId acc
 
 data ListOpts = ListOpts
