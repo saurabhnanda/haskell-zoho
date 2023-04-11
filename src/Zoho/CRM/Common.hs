@@ -17,6 +17,7 @@ import GHC.Generics
 import Data.Aeson.Types as Aeson (Parser)
 import Debug.Trace
 import Control.Applicative ((<|>))
+import Data.String.Conv (toS)
 
 data Approval = Approval
   { apDelegate :: Maybe Bool -- delegate
@@ -156,15 +157,22 @@ data ZohoCode = ZCodeInvalidToken
               deriving (Eq, Show, Generic, Ord)
 
 instance FromJSON ZohoCode where
-  parseJSON = withText "Expecting text to parse into ZohoCode" $ \t -> pure $ case t of
-    "INVALID_TOKEN" -> ZCodeInvalidToken
-    "INVALID_OAUTH" -> ZCodeInvalidToken
-    "INVALID_DATA" -> ZCodeInvalidData
-    "SUCCESS" -> ZCodeSuccess
-    _ -> ZCodeOther t
+  parseJSON v = 
+    case v of
+      Aeson.String t -> pure $ case t of
+        "INVALID_TOKEN" -> ZCodeInvalidToken
+        "INVALID_OAUTH" -> ZCodeInvalidToken
+        "INVALID_DATA" -> ZCodeInvalidData
+        "SUCCESS" -> ZCodeSuccess
+        _ -> ZCodeOther t
+      Aeson.Number n -> 
+        if n==0 then pure ZCodeSuccess else pure $ ZCodeOther $ toS $ show n
+      _ -> 
+        fail "Expecting a Text or Number to parse into ZohoStatus"
 
 data ZohoStatus = ZStatusError
                 | ZStatusSuccess
+                | ZStatusMissing
                 | ZStatusOther !Text
                 deriving (Eq, Show, Generic, Ord)
 
@@ -210,9 +218,14 @@ instance (FromJSON metadata, FromJSON action) => FromJSON (ZohoResult metadata a
       Nothing -> pure Aeson.Null
       Just x -> pure x
     zresMessage <- o .: "message"
-    zresStatus <- (o .: "status") <|> (pure ZStatusError)
+    zresStatus <- (optionalStatus o) <|> (pure ZStatusError)
     zresAction <- (parseJSON (Aeson.Object o)) <|> (pure Nothing)
     pure ZohoResult{..}
+    where
+      optionalStatus o =
+        (o .:? "status") >>= \case
+          Nothing -> pure ZStatusMissing
+          Just x -> pure x
 
 -- instance {-# OVERLAPS #-} FromJSON (ZohoResult () ()) where
 --   parseJSON = zohoResultParser (const $ pure ()) (const $ pure ())

@@ -28,9 +28,12 @@ library
       Zoho.Types
       Zoho.ZohoM
       Zoho.Books.Contact
-      Zoho.Books.Invoice
       Zoho.Books.Account
       Zoho.Books.Expense
+      Zoho.Books.Bill
+      Zoho.Books.Common
+      Zoho.Books.Invoice
+      Zoho.Books.VendorPayment
       Zoho.CRM.Records
       Zoho.CRM.Common
       Zoho.CRM.Contacts
@@ -44,7 +47,6 @@ library
       Zoho.CRM.Common.Utils
   other-modules:
       Main
-      Zoho.Books.Common
       Zoho.CRM.Modules
       Paths_haskell_zoho
   hs-source-dirs:

@@ -15,6 +15,7 @@ import Zoho.Types
 import qualified Zoho.OAuth as ZO
 import Zoho.ZohoM as ZM
 import qualified Zoho.Books.Common as Common
+import Zoho.Books.Common (CustomField(..))
 import Network.HTTP.Client as HC (Request)
 import qualified Data.HashMap.Lazy as HML
 -- import Data.String.Conv
@@ -35,16 +36,6 @@ instance ToJSON AccountType where
 instance FromJSON AccountType where
   parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase)
 
-data CustomField = CustomField
-  { cfCustomfieldId :: !Text
-  , cfValue :: !Aeson.Value
-  } deriving (Eq, Show, Generic)
-
-instance ToJSON CustomField where
-  toJSON = genericToJSON (zohoPrefix Casing.snakeCase)
-
-instance FromJSON CustomField where
-  parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase)
 
 data Account cf = Account
   { accAccountId :: !(Maybe AccountId)
@@ -55,7 +46,7 @@ data Account cf = Account
   , accDescription :: !(Maybe Text)
   , accIsActive :: !(Maybe Bool)
   , accCurrencyCode :: !(Maybe Text)
-  , accCustomFields :: !(Maybe [CustomField])
+  , accCustomFields :: !(Maybe [Common.CustomField])
   , accParentAccountId :: !(Maybe AccountId)
   , accCreatedTime :: !(Maybe UTCTime)
   , accLastModifiedTime :: !(Maybe UTCTime)
@@ -78,7 +69,6 @@ instance (FromJSON cf) => FromJSON (Account cf) where
     cf <- parseJSON v
     pure acc{accOtherFields=cf}
 
-$(makeLensesWith abbreviatedFields ''CustomField)
 $(makeLensesWith abbreviatedFields ''Account)
 -- $(makeLensesWith abbreviatedFields ''Contact)
 

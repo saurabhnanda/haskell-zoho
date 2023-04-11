@@ -20,22 +20,13 @@ import qualified Data.HashMap.Lazy as HML
 import Zoho.Books.Account (AccountId(..))
 import Zoho.Books.Contact (VendorId (..), CustomerId (..))
 import Data.Time
+import Network.HTTP.Types as HT
+import qualified Data.ByteString as BS
 
 newtype ExpenseId = ExpenseId {rawExpenseId :: Text} 
   deriving (Eq, Show, Generic, Ord)
   deriving ToJSON via Text
   deriving FromJSON via Text
-
-newtype TaxId = TaxId {rawTaxId :: Text}
-  deriving (Eq, Show, Generic, Ord)
-  deriving (ToJSON) via Text
-  deriving (FromJSON) via Text
-
-
-newtype CurrencyId = CurrencyId {rawCurrencyId :: Text}
-  deriving (Eq, Show, Generic, Ord)
-  deriving (ToJSON) via Text
-  deriving (FromJSON) via Text
 
 data ExpenseLineItem = ExpenseLineItem 
   { eliLineItemId :: !(Maybe Text)
@@ -71,8 +62,10 @@ data Expense cf = Expense
   , expExchangeRate :: !(Maybe Double)
   , expVendorId :: !(Maybe VendorId)
   , expPaidThroughAccountId :: !(Maybe AccountId)
+  , expCustomFields :: !(Maybe [CustomField])
   , expOtherFields :: !(Maybe cf)
   } deriving (Eq, Show, Generic)
+$(makeLensesWith abbreviatedFields ''Expense)
 
 instance (ToJSON cf) => ToJSON (Expense cf) where
   toJSON :: ToJSON cf => Expense cf -> Value
@@ -106,3 +99,56 @@ create orgId exp = do
   (ZM.runRequestAndParseResponse $ createRequest orgId exp) >>= \case
     Left e -> pure $ Left e
     Right (r :: ResponseWrapper "expense" (Expense cf)) -> pure $ Right $ unwrapResponse r
+
+
+
+deleteRequest :: OrgId -> ExpenseId -> Request
+deleteRequest orgId ExpenseId{rawExpenseId} = 
+  let params = Common.orgIdParam orgId
+  in ZO.prepareDelete (Common.mkApiEndpoint $ "/expenses/" <> toS rawExpenseId) params [] Nothing
+
+delete :: (HasZoho m) => OrgId -> ExpenseId -> m (Either Error DeleteResult)
+delete orgId eid = 
+  ZM.runRequestAndParseResponse $  deleteRequest orgId eid
+
+data ListOpts = ListOpts
+  { optReferenceNumber :: !(Maybe ListOp)
+  , optAccountName :: !(Maybe ListOp)
+  , optCustomerName :: !(Maybe ListOp)
+  , optVendorName :: !(Maybe ListOp)
+  , optCustomerId :: !(Maybe CustomerId)
+  , optVendorId :: !(Maybe VendorId)
+  , optPaidThroughAccountId :: !(Maybe AccountId)
+  , optSearchText :: !(Maybe Text)
+  , optDateBefore :: !(Maybe Day)
+  , optDateAfter :: !(Maybe Day)
+  , optDateStart :: !(Maybe Day)
+  , optDateEnd :: !(Maybe Day)
+  , optPage :: !(Maybe Int)
+  , optPerPage :: !(Maybe Int)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
+$(makeLensesWith abbreviatedFields ''ListOpts)
+
+listRequest :: OrgId -> ListOpts -> Request
+listRequest orgId ListOpts{..} =
+  let params =  ZO.applyOptionalQueryParam "date_before" (show <$> optDateBefore) $
+                ZO.applyOptionalQueryParam "date_after" (show <$> optDateAfter) $
+                ZO.applyOptionalQueryParam "date_start" (show <$> optDateStart) $
+                ZO.applyOptionalQueryParam "date_end" (show <$> optDateEnd) $
+                ZO.applyOptionalQueryParam "search_text" optSearchText $
+                ZO.applyOptionalQueryParam "paid_through_account_id" (rawAccountId <$> optPaidThroughAccountId) $
+                ZO.applyOptionalQueryParam "vendor_id" (rawVendorId <$> optVendorId) $
+                ZO.applyOptionalQueryParam "customer_id" (rawCustomerId <$> optCustomerId) $
+                applyOptionalListOp "vendor_name" optVendorName $
+                applyOptionalListOp "customer_name" optCustomerName $
+                applyOptionalListOp "account_name" optAccountName $
+                applyOptionalListOp "reference_number" optReferenceNumber $
+                ZO.applyOptionalQueryParam "page" (show <$> optPage) $
+                ZO.applyOptionalQueryParam "per_page" (show <$> optPerPage) $
+                Common.orgIdParam orgId
+  in ZO.prepareGet (Common.mkApiEndpoint $ "/expenses") params []
+
+list :: (HasZoho m, FromJSON cf) => OrgId -> ListOpts -> m (Either Error (PaginatedResponse "expenses" [Expense cf]))
+list orgId opts = 
+  ZM.runRequestAndParseResponse $ listRequest orgId opts
