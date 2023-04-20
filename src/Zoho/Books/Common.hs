@@ -50,8 +50,17 @@ newtype TdsId = TdsId {rawTdsId :: Text}
   deriving (FromJSON) via Text
 
 type DeleteResult = ZohoResult OmitField OmitField
+type OperationResult = ZohoResult OmitField OmitField
 
 data ListOp = OpStartsWith !Text | OpContains !Text deriving  (Eq, Show, Generic)
+
+data UnsafeEither a b = UnsafeLeft !a | UnsafeRight !b deriving (Eq, Show, Generic)
+
+instance (ToJSON a, ToJSON b) => ToJSON (UnsafeEither a b) where
+  toJSON = genericToJSON (zohoPrefix Casing.snakeCase){sumEncoding=UntaggedValue} 
+
+instance (FromJSON a, FromJSON b) => FromJSON (UnsafeEither a b) where
+  parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase){sumEncoding=UntaggedValue} 
 
 applyOptionalListOp :: BS.ByteString -> Maybe ListOp -> HT.Query -> HT.Query
 applyOptionalListOp k mListOp qp = 
@@ -60,4 +69,5 @@ applyOptionalListOp k mListOp qp =
     Just (OpStartsWith x) ->(k <> "_startswith", Just $ toS x):qp
     Just (OpContains x) ->(k <> "_contains", Just $ toS x):qp
 
-
+class HasOtherFields s a | s -> a where
+  otherFields :: Lens' s a

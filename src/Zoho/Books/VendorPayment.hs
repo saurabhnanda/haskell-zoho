@@ -30,24 +30,24 @@ newtype VendorPaymentId = VendorPaymentId {rawVendorPaymentId :: Text}
   deriving ToJSON via Text
   deriving FromJSON via Text
 
-data VendorPaymentLineItem = VenderPaymentLineItem 
-  { vpliBillPaymentId :: !(Maybe VendorPaymentId)
-  , vpliVendorPaymentId :: !(Maybe VendorPaymentId)
-  , vpliAmountApplied :: !(Maybe Double)
-  , vpliTaxAmountWithheld :: !(Maybe Text)
+data VendorPaymentBill = VendorPaymentBill 
+  { vpbBillPaymentId :: !(Maybe VendorPaymentId)
+  , vpbBillId :: !(Maybe BillId)
+  , vpbAmountApplied :: !(Maybe Double)
+  , vpbTaxAmountWithheld :: !(Maybe Text)
   } deriving (Eq, Show, Generic)
-$(makeLensesWith abbreviatedFields ''VendorPaymentLineItem)
+$(makeLensesWith abbreviatedFields ''VendorPaymentBill)
 
-instance ToJSON VendorPaymentLineItem where
+instance ToJSON VendorPaymentBill where
   toJSON = genericToJSON (zohoPrefix Casing.snakeCase)
 
-instance FromJSON VendorPaymentLineItem where
+instance FromJSON VendorPaymentBill where
   parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase)
 
 data VendorPayment cf = VendorPayment
   { vpPaymentId :: !(Maybe VendorPaymentId)
   , vpVendorId :: !(Maybe VendorId)
-  , vpBills :: !(Maybe [VendorPaymentLineItem])
+  , vpBills :: !(Maybe [VendorPaymentBill])
   , vpDate :: !(Maybe Day)
   , vpAmount :: !(Maybe Double)
   , vpPaidThroughAccountId :: !(Maybe AccountId)
@@ -90,7 +90,7 @@ create :: forall m cf . (HasZoho m, ToJSON cf, FromJSON cf) => OrgId -> VendorPa
 create orgId obj = do
   (ZM.runRequestAndParseResponse $ createRequest orgId obj) >>= \case
     Left e -> pure $ Left e
-    Right (r :: ResponseWrapper "payment" (VendorPayment cf)) -> pure $ Right $ unwrapResponse r
+    Right (r :: ResponseWrapper "vendorpayment" (VendorPayment cf)) -> pure $ Right $ unwrapResponse r
 
 
 deleteRequest :: OrgId -> VendorPaymentId -> Request

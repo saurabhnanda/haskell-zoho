@@ -173,3 +173,12 @@ listRequest orgId ListOpts{..} =
 list :: (HasZoho m, FromJSON cf) => OrgId -> ListOpts -> m (Either Error (PaginatedResponse "journals" [Journal cf]))
 list orgId opts = 
   ZM.runRequestAndParseResponse $ listRequest orgId opts
+
+fetchRequest :: OrgId -> JournalId -> Request
+fetchRequest orgId JournalId{rawJournalId} = 
+  let params = Common.orgIdParam orgId
+  in ZO.prepareGet (Common.mkApiEndpoint $ "/journals/" <> toS rawJournalId) params []
+
+fetch :: (HasZoho m, FromJSON cf) => OrgId -> JournalId -> m (Either Error (Journal cf))
+fetch orgId objId = 
+  ZM.runRequestAndParseResponse $ fetchRequest orgId objId

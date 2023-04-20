@@ -74,6 +74,8 @@ data Bill cf = Bill
   , billTdsAmount :: !(Maybe Double)
   , billIsTdsAmountInPercent :: !(Maybe Bool)
   , billTdsTaxId :: !(Maybe TdsId)
+  , billAdjustmentDescription :: !(Maybe Text)
+  , billAdjustment :: !(Maybe Double)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 $(makeLensesWith abbreviatedFields ''Bill)
 
@@ -152,7 +154,7 @@ listRequest orgId ListOpts{..} =
                 ZO.applyOptionalQueryParam "vendor_id" (rawVendorId <$> optVendorId) $
                 applyOptionalListOp "vendor_name" optVendorName $
                 applyOptionalListOp "bill_number" optBillNumber $
-                applyOptionalListOp "description" optBillNumber $
+                applyOptionalListOp "description" optDescription $
                 applyOptionalListOp "reference_number" optReferenceNumber $
                 ZO.applyOptionalQueryParam "page" (show <$> optPage) $
                 ZO.applyOptionalQueryParam "per_page" (show <$> optPerPage) $

@@ -19,6 +19,7 @@ import Data.String.Conv
 import qualified Data.HashMap.Lazy as HML
 import Zoho.Books.Account (AccountId(..))
 import Zoho.Books.Contact (VendorId (..), CustomerId (..))
+import Zoho.Books.Item (ItemId (..))
 import Data.Time
 import Zoho.CRM.Common (ZohoResult(..))
 import Network.HTTP.Types as HT
@@ -29,16 +30,23 @@ newtype InvoiceId = InvoiceId {rawInvoiceId :: Text}
   deriving ToJSON via Text
   deriving FromJSON via Text
 
+data DiscountType = ItemLevel | EntityLevel deriving (Eq, Show, Generic)
+
+instance ToJSON DiscountType where
+  toJSON = genericToJSON (zohoPrefix Casing.snakeCase){constructorTagModifier=Casing.snakeCase}
+
+instance FromJSON DiscountType where
+  parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase){constructorTagModifier=Casing.snakeCase}
+
 data InvoiceLineItem = InvoiceLineItem 
   { iliLineItemId :: !(Maybe Text)
-  , iliItemId :: !(Maybe Text)
+  , iliItemId :: !(Maybe ItemId)
   , iliName :: !(Maybe Text)
   , iliAccountId :: !(Maybe AccountId)
   , iliDescription :: !(Maybe Text)
   , iliRate :: !(Maybe Double)
   , iliHsnOrSac :: !(Maybe Text)
   , iliQuantity :: !(Maybe Double)
-  , iliCustomerId :: !(Maybe CustomerId)
   , iliTaxId :: !(Maybe TaxId)
   , iliIsBillable :: !(Maybe Bool)
   , iliUnit :: !(Maybe Text)
@@ -54,7 +62,7 @@ instance FromJSON InvoiceLineItem where
   parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase)
 
 data Invoice cf = Invoice
-  { inInvoiceId :: !(Maybe InvoiceId)
+  { invInvoiceId :: !(Maybe InvoiceId)
   , invIsPreGst :: !(Maybe Bool)
   , invPlaceOfSupply :: !(Maybe Text) -- GST State code?
   , invGstNo :: !(Maybe Text) 
@@ -63,24 +71,29 @@ data Invoice cf = Invoice
   , invPaymentTerms :: !(Maybe Int)
   , invPaymentTermsLabel :: !(Maybe Text)
   , invDueDate :: !(Maybe Day)
+  , invInvoiceNumber :: !(Maybe Text)
   , invReferenceNumber :: !(Maybe Text)
   , invCustomerId :: !(Maybe CustomerId)
-  , invCustomerNamr :: !(Maybe Text)
+  , invCustomerName :: !(Maybe Text)
   , invCurrencyId :: !(Maybe CurrencyId)
   , invDiscount :: !(Maybe Double)
   , invIsDiscountBeforeTax :: !(Maybe Bool)
-  , invDiscountType :: !(Maybe Text)
+  , invDiscountType :: !(Maybe DiscountType)
   , invIsInclusiveTax :: !(Maybe Bool)
   , invLineItems :: !(Maybe [InvoiceLineItem])
   , invSalespersonName :: !(Maybe Text)
   , invCustomFields :: !(Maybe [CustomField])
   , invNotes :: !(Maybe Text)
   , invTerms :: !(Maybe Text)
-  , invAdjustments :: !(Maybe Double)
-  , invAdjustmentDescription :: !(Maybe Double)
+  , invAdjustment :: !(Maybe Double)
+  , invAdjustmentDescription :: !(Maybe Text)
   , invReason :: !(Maybe Text)
   , invTaxId :: !(Maybe TaxId)
   , invOtherFields :: !(Maybe cf)
+  , invTdsPercent :: !(Maybe Text)
+  , invTdsAmount :: !(Maybe (UnsafeEither Double Text))
+  , invIsTdsAmountInPercent :: !(Maybe Bool)
+  , invTdsTaxId :: !(Maybe TdsId)
   } deriving (Eq, Show, Generic)
 $(makeLensesWith abbreviatedFields ''Invoice)
 
@@ -187,3 +200,14 @@ listRequest orgId ListOpts{..} =
 list :: (HasZoho m, FromJSON cf) => OrgId -> ListOpts -> m (Either Error (PaginatedResponse "invoices" [Invoice cf]))
 list orgId opts = 
   ZM.runRequestAndParseResponse $ listRequest orgId opts
+
+
+markAsSentRequest :: OrgId -> InvoiceId -> Request
+markAsSentRequest orgId InvoiceId{..} = 
+  let params = Common.orgIdParam orgId
+  in ZO.prepareJSONPost (Common.mkApiEndpoint $ "/invoices/" <> toS rawInvoiceId <> "/status/sent") params [] Aeson.Null
+
+
+markAsSent :: (HasZoho m) => OrgId -> InvoiceId -> m (Either Error OperationResult)
+markAsSent orgId invid = 
+  ZM.runRequestAndParseResponse $ markAsSentRequest orgId invid

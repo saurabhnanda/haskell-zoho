@@ -18,6 +18,7 @@ import Network.HTTP.Client as HC (Request)
 import Data.String.Conv
 import qualified Data.HashMap.Lazy as HML
 import qualified Data.ByteString as BS
+import Zoho.Books.Common (HasOtherFields(..))
 
 
 newtype ContactId = ContactId {rawContactId :: Text} 
