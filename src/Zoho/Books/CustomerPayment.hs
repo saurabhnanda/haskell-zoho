@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module Zoho.Books.VendorPayment where
+module Zoho.Books.CustomerPayment where
 
 import qualified Data.Text as T
 import Data.Text (Text)
@@ -23,59 +23,59 @@ import Data.Time
 import Zoho.CRM.Common (ZohoResult(..))
 import Network.HTTP.Types as HT
 import qualified Data.ByteString as BS
-import Zoho.Books.Bill (BillId(..))
+import Zoho.Books.Invoice (InvoiceId(..))
 
-newtype VendorPaymentId = VendorPaymentId {rawVendorPaymentId :: Text} 
+newtype CustomerPaymentId = CustomerPaymentId {rawCustomerPaymentId :: Text} 
   deriving (Eq, Show, Generic, Ord)
   deriving ToJSON via Text
   deriving FromJSON via Text
 
-data VendorPaymentBill = VendorPaymentBill 
-  { vpbBillPaymentId :: !(Maybe VendorPaymentId)
-  , vpbBillId :: !(Maybe BillId)
-  , vpbAmountApplied :: !(Maybe Double)
-  , vpbTaxAmountWithheld :: !(Maybe Double)
+data CustomerPaymentInvoice = CustomerPaymentInvoice 
+  { cpiInvoicePaymentId :: !(Maybe CustomerPaymentId)
+  , cpiInvoiceId :: !(Maybe InvoiceId)
+  , cpiAmountApplied :: !(Maybe Double)
+  -- , cpiTaxAmountWithheld :: !(Maybe Text)
   } deriving (Eq, Show, Generic)
-$(makeLensesWith abbreviatedFields ''VendorPaymentBill)
+$(makeLensesWith abbreviatedFields ''CustomerPaymentInvoice)
 
-instance ToJSON VendorPaymentBill where
+instance ToJSON CustomerPaymentInvoice where
   toJSON = genericToJSON (zohoPrefix Casing.snakeCase)
 
-instance FromJSON VendorPaymentBill where
+instance FromJSON CustomerPaymentInvoice where
   parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase)
 
-data VendorPayment cf = VendorPayment
-  { vpPaymentId :: !(Maybe VendorPaymentId)
-  , vpVendorId :: !(Maybe VendorId)
-  , vpBills :: !(Maybe [VendorPaymentBill])
-  , vpDate :: !(Maybe Day)
-  , vpAmount :: !(Maybe Double)
-  , vpPaidThroughAccountId :: !(Maybe AccountId)
-  , vpPaymentMode :: !(Maybe Text)
-  , vpDescription :: !(Maybe Text)
-  , vpReferenceNumber :: !(Maybe Text)
-  , vpCustomFields :: !(Maybe [CustomField])
-  , vpOtherFields :: !(Maybe cf)
-  , vpPaymentNumberPrefix :: !(Maybe Text)
-  , vpPaymentNumberSuffix :: !(Maybe Text)
+data CustomerPayment cf = CustomerPayment
+  { cpPaymentId :: !(Maybe CustomerPaymentId)
+  , cpCustomerId :: !(Maybe CustomerId)
+  , cpPaymentMode :: !(Maybe Text)
+  , cpAmount :: !(Maybe Double)
+  , cpDate :: !(Maybe Day)
+  , cpReferenceNumber :: !(Maybe Text)
+  , cpDescription :: !(Maybe Text)
+  , cpInvoices :: !(Maybe [CustomerPaymentInvoice])
+  , cpCustomFields :: !(Maybe [CustomField])
+  , cpOtherFields :: !(Maybe cf)
+  , cpAccountId :: !(Maybe AccountId)
+  , cpPaymentNumberPrefix :: !(Maybe Text)
+  , cpPaymentNumberSuffix :: !(Maybe Text)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
-$(makeLensesWith abbreviatedFields ''VendorPayment)
+$(makeLensesWith abbreviatedFields ''CustomerPayment)
 
-instance (ToJSON cf) => ToJSON (VendorPayment cf) where
-  toJSON :: ToJSON cf => VendorPayment cf -> Value
+instance (ToJSON cf) => ToJSON (CustomerPayment cf) where
+  toJSON :: ToJSON cf => CustomerPayment cf -> Value
   toJSON acc =
-    let x  = genericToJSON (zohoPrefix Casing.snakeCase) acc{vpOtherFields=(Nothing :: Maybe OmitField)}
-        cf = toJSON (vpOtherFields acc)
+    let x  = genericToJSON (zohoPrefix Casing.snakeCase) acc{cpOtherFields=(Nothing :: Maybe OmitField)}
+        cf = toJSON (cpOtherFields acc)
         y = unsafeMergeObjects x cf
     in case y of
       Aeson.Object o -> Aeson.Object $ HML.delete "other_fields" o
       _ -> y
 
-instance (FromJSON cf) => FromJSON (VendorPayment cf) where
+instance (FromJSON cf) => FromJSON (CustomerPayment cf) where
   parseJSON v = do
-    acc :: VendorPayment OmitField <- genericParseJSON (zohoPrefix Casing.snakeCase) v
+    acc :: CustomerPayment OmitField <- genericParseJSON (zohoPrefix Casing.snakeCase) v
     cf <- parseJSON v
-    pure acc{vpOtherFields=cf}
+    pure acc{cpOtherFields=cf}
 
 -- instance ToJSON Expense where
 --   toJSON = genericToJSON (zohoPrefix Casing.snakeCase)
@@ -88,50 +88,42 @@ data CreateOpts = CreateOpts
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 $(makeLensesWith abbreviatedFields ''CreateOpts)
 
-createRequest :: (ToJSON cf) => OrgId -> CreateOpts -> VendorPayment cf -> Request
+createRequest :: (ToJSON cf) => OrgId -> CreateOpts -> CustomerPayment cf -> Request
 createRequest orgId CreateOpts{..} obj =
   let params =  ZO.applyOptionalQueryParam "ignore_auto_number_generation" ((T.toLower . toS . show) <$> createIgnoreAutoNumberGeneration) $
                 Common.orgIdParam orgId
-  in ZO.prepareJSONPost (Common.mkApiEndpoint "/vendorpayments") params [] obj
+  in ZO.prepareJSONPost (Common.mkApiEndpoint "/customerpayments") params [] obj
 
-create :: forall m cf . (HasZoho m, ToJSON cf, FromJSON cf) => OrgId -> CreateOpts -> VendorPayment cf -> m (Either Error (VendorPayment cf))
+create :: forall m cf . (HasZoho m, ToJSON cf, FromJSON cf) => OrgId -> CreateOpts -> CustomerPayment cf -> m (Either Error (CustomerPayment cf))
 create orgId opts obj = do
   (ZM.runRequestAndParseResponse $ createRequest orgId opts obj) >>= \case
     Left e -> pure $ Left e
-    Right (r :: ResponseWrapper "vendorpayment" (VendorPayment cf)) -> pure $ Right $ unwrapResponse r
+    Right (r :: ResponseWrapper "payment" (CustomerPayment cf)) -> pure $ Right $ unwrapResponse r
 
 
-deleteRequest :: OrgId -> VendorPaymentId -> Request
-deleteRequest orgId VendorPaymentId{rawVendorPaymentId} = 
+deleteRequest :: OrgId -> CustomerPaymentId -> Request
+deleteRequest orgId CustomerPaymentId{rawCustomerPaymentId} = 
   let params = Common.orgIdParam orgId
-  in ZO.prepareDelete (Common.mkApiEndpoint $ "/vendorpayments/" <> toS rawVendorPaymentId) params [] Nothing
+  in ZO.prepareDelete (Common.mkApiEndpoint $ "/customerpayments/" <> toS rawCustomerPaymentId) params [] Nothing
 
-delete :: (HasZoho m) => OrgId -> VendorPaymentId -> m (Either Error DeleteResult)
+delete :: (HasZoho m) => OrgId -> CustomerPaymentId -> m (Either Error DeleteResult)
 delete orgId objId = 
   ZM.runRequestAndParseResponse $  deleteRequest orgId objId
 
 data ListOpts = ListOpts
-  { optReferenceNumber :: !(Maybe ListOp)
-  , optPaymentNumber :: !(Maybe ListOp)
+  { optCustomerName :: !(Maybe ListOp)
+  , optReferenceNumber :: !(Maybe ListOp)
   , optDateBefore :: !(Maybe Day)
   , optDateAfter :: !(Maybe Day) 
   , optDateStart :: !(Maybe Day) 
   , optDateEnd :: !(Maybe Day)
   , optNotes :: !(Maybe ListOp)
-  , optDescription :: !(Maybe ListOp)
-  , optVendorName :: !(Maybe ListOp) 
-  , optVendorId :: !(Maybe VendorId)
-  , optBillId :: !(Maybe BillId)
+  , optPaymentMode :: !(Maybe ListOp)
   , optSearchText :: !(Maybe Text)
+  , optCustomerId :: !(Maybe CustomerId)
   , optPage :: !(Maybe Int)
   , optPerPage :: !(Maybe Int)
-
-  -- , optAccountName :: !(Maybe ListOp)
-  -- , optCustomerName :: !(Maybe ListOp)
-  -- , optCustomerId :: !(Maybe CustomerId)
-  -- , optPaidThroughAccountId :: !(Maybe AccountId)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
-
 $(makeLensesWith abbreviatedFields ''ListOpts)
 
 listRequest :: OrgId -> ListOpts -> Request
@@ -141,18 +133,16 @@ listRequest orgId ListOpts{..} =
                 ZO.applyOptionalQueryParam "date_start" (show <$> optDateStart) $
                 ZO.applyOptionalQueryParam "date_end" (show <$> optDateEnd) $
                 ZO.applyOptionalQueryParam "search_text" optSearchText $
-                ZO.applyOptionalQueryParam "vendor_id" (rawVendorId <$> optVendorId) $
-                ZO.applyOptionalQueryParam "bill_id" (rawBillId <$> optBillId) $
-                applyOptionalListOp "vendor_name" optVendorName $
-                applyOptionalListOp "description" optDescription $
+                ZO.applyOptionalQueryParam "customer_id" (rawCustomerId <$> optCustomerId) $
+                applyOptionalListOp "customer_name" optCustomerName $
                 applyOptionalListOp "notes" optNotes $
                 applyOptionalListOp "reference_number" optReferenceNumber $
-                applyOptionalListOp "payment_number" optPaymentNumber $
+                applyOptionalListOp "payment_mode" optPaymentMode $
                 ZO.applyOptionalQueryParam "page" (show <$> optPage) $
                 ZO.applyOptionalQueryParam "per_page" (show <$> optPerPage) $
                 Common.orgIdParam orgId
-  in ZO.prepareGet (Common.mkApiEndpoint "/vendorpayments") params []
+  in ZO.prepareGet (Common.mkApiEndpoint "/customerpayments") params []
 
-list :: (HasZoho m, FromJSON cf) => OrgId -> ListOpts -> m (Either Error (PaginatedResponse "vendorpayments" [VendorPayment cf]))
+list :: (HasZoho m, FromJSON cf) => OrgId -> ListOpts -> m (Either Error (PaginatedResponse "customerpayments" [CustomerPayment cf]))
 list orgId opts = 
   ZM.runRequestAndParseResponse $ listRequest orgId opts

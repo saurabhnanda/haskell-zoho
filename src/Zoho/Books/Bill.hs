@@ -41,6 +41,7 @@ data BillLineItem = BillLineItem
   , bliCustomerId :: !(Maybe CustomerId)
   , bliTaxId :: !(Maybe TaxId)
   , bliGstTreatmentCode :: !(Maybe Text)
+  , bliItcEligibility :: !(Maybe Text)
   , bliIsBillable :: !(Maybe Bool)
   } deriving (Eq, Show, Generic)
 $(makeLensesWith abbreviatedFields ''BillLineItem)
@@ -76,6 +77,7 @@ data Bill cf = Bill
   , billTdsTaxId :: !(Maybe TdsId)
   , billAdjustmentDescription :: !(Maybe Text)
   , billAdjustment :: !(Maybe Double)
+  , billBalance :: !(Maybe Double)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 $(makeLensesWith abbreviatedFields ''Bill)
 
@@ -164,3 +166,14 @@ listRequest orgId ListOpts{..} =
 list :: (HasZoho m, FromJSON cf) => OrgId -> ListOpts -> m (Either Error (PaginatedResponse "bills" [Bill cf]))
 list orgId opts = 
   ZM.runRequestAndParseResponse $ listRequest orgId opts
+
+fetchRequest :: OrgId -> BillId -> Request
+fetchRequest orgId BillId{rawBillId} = 
+  let params = Common.orgIdParam orgId
+  in ZO.prepareGet (Common.mkApiEndpoint $ "/bills/" <> toS rawBillId) params []
+
+fetch :: forall m cf . (HasZoho m, FromJSON cf) => OrgId -> BillId -> m (Either Error (Bill cf))
+fetch orgId objId = 
+  (ZM.runRequestAndParseResponse $  fetchRequest orgId objId) >>= \case
+    Left e -> pure $ Left e
+    Right (inv :: ResponseWrapper "bill" (Bill cf)) -> pure $ Right $ unwrapResponse inv

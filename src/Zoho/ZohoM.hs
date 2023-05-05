@@ -39,6 +39,7 @@ import UnliftIO.IORef
 import Control.Monad.IO.Unlift
 import qualified Control.Concurrent.TokenBucket as TB
 import Control.Applicative ((<|>))
+import Debug.Trace
 
 class (MonadIO m, E.MonadMask m) => HasZoho m where
   refreshAccessToken :: AccessToken -> m (OAuth2Result TokenRequest.Errors (RefreshToken, AccessToken))
@@ -76,7 +77,7 @@ runZohoT mgr oa rtkn mAtkn action = do
         { zenvTokenRef = tknRef
         , zenvManager = mgr
         , zenvOAuth2 = oa
-        , zenvTokenBucketWait = liftIO $ TB.tokenBucketWait tb 10 (100000 * 60 `div` 30)
+        , zenvTokenBucketWait = liftIO $ TB.tokenBucketWait tb 10 (100000 * 60 `div` 20)
         }
   runReaderT action zenv
 

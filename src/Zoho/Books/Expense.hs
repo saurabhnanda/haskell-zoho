@@ -53,6 +53,7 @@ data Expense cf = Expense
   , expDestinationOfSupply :: !(Maybe Text)
   , expHsnOrSac :: !(Maybe Text)
   , expGstNo :: !(Maybe Text)
+  , expGstTreatment :: !(Maybe Text)
   , expLineItems :: !(Maybe [ExpenseLineItem])
   , expIsInclusiveTax :: !(Maybe Bool)
   , expReferenceNumber :: !(Maybe Text)

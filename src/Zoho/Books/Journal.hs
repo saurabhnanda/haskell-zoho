@@ -112,14 +112,20 @@ instance (FromJSON cf) => FromJSON (Journal cf) where
 -- instance FromJSON Expense where
 --   parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase)
 
-createRequest :: (ToJSON cf) => OrgId -> Journal cf -> Request
-createRequest orgId obj =
-  let params = Common.orgIdParam orgId
+data CreateOpts = CreateOpts
+  { createIgnoreAutoNumberGeneration :: !(Maybe Bool)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
+$(makeLensesWith abbreviatedFields ''CreateOpts)
+
+createRequest :: (ToJSON cf) => OrgId -> CreateOpts -> Journal cf -> Request
+createRequest orgId CreateOpts{..} obj =
+  let params = ZO.applyOptionalQueryParam "ignore_auto_number_generation" ((T.toLower . toS . show) <$> createIgnoreAutoNumberGeneration) $
+               Common.orgIdParam orgId
   in ZO.prepareJSONPost (Common.mkApiEndpoint "/journals") params [] obj
 
-create :: forall m cf . (HasZoho m, ToJSON cf, FromJSON cf) => OrgId -> Journal cf -> m (Either Error (Journal cf))
-create orgId obj = do
-  (ZM.runRequestAndParseResponse $ createRequest orgId obj) >>= \case
+create :: forall m cf . (HasZoho m, ToJSON cf, FromJSON cf) => OrgId -> CreateOpts -> Journal cf -> m (Either Error (Journal cf))
+create orgId opts obj = do
+  (ZM.runRequestAndParseResponse $ createRequest orgId opts obj) >>= \case
     Left e -> pure $ Left e
     Right (r :: ResponseWrapper "journal" (Journal cf)) -> pure $ Right $ unwrapResponse r
 

@@ -14,7 +14,7 @@ import Zoho.Books.Common
 import qualified Zoho.OAuth as ZO
 import Zoho.ZohoM as ZM
 import qualified Zoho.Books.Common as Common
-import Network.HTTP.Client as HC (Request)
+import Network.HTTP.Client as HC (Request, path, method)
 import Data.String.Conv
 import qualified Data.HashMap.Lazy as HML
 import Zoho.Books.Account (AccountId(..))
@@ -24,6 +24,7 @@ import Data.Time
 import Zoho.CRM.Common (ZohoResult(..))
 import Network.HTTP.Types as HT
 import qualified Data.ByteString as BS
+import URI.ByteString as U
 
 newtype InvoiceId = InvoiceId {rawInvoiceId :: Text} 
   deriving (Eq, Show, Generic, Ord)
@@ -94,6 +95,8 @@ data Invoice cf = Invoice
   , invTdsAmount :: !(Maybe (UnsafeEither Double Text))
   , invIsTdsAmountInPercent :: !(Maybe Bool)
   , invTdsTaxId :: !(Maybe TdsId)
+  , invTotal :: !(Maybe Double)
+  , invBalance :: !(Maybe Double)
   } deriving (Eq, Show, Generic)
 $(makeLensesWith abbreviatedFields ''Invoice)
 
@@ -129,7 +132,7 @@ $(makeLensesWith abbreviatedFields ''CreateOpts)
 createRequest :: (ToJSON cf) => OrgId -> CreateOpts -> Invoice cf -> Request
 createRequest orgId CreateOpts{..} obj =
   let params = ZO.applyOptionalQueryParam "send" ((T.toLower . toS . show) <$> createSend) $
-               ZO.applyOptionalQueryParam "ignore_auto_number_generation" ((T.toLower . toS . show) <$> createSend) $
+               ZO.applyOptionalQueryParam "ignore_auto_number_generation" ((T.toLower . toS . show) <$> createIgnoreAutoNumberGeneration) $
                Common.orgIdParam orgId
   in ZO.prepareJSONPost (Common.mkApiEndpoint "/invoices") params [] obj
 
@@ -140,6 +143,25 @@ create orgId opts obj = do
     Left e -> pure $ Left e
     Right (r :: ResponseWrapper "invoice" (Invoice cf)) -> pure $ Right $ unwrapResponse r
 
+update :: forall m cf . (HasZoho m, ToJSON cf, FromJSON cf) => OrgId -> CreateOpts -> InvoiceId -> Invoice cf -> m (Either Error (Invoice cf))
+update orgId opts InvoiceId{rawInvoiceId} obj = do
+  let req = createRequest orgId opts obj
+      p = toS $ U.serializeURIRef' $ Common.mkApiEndpoint $ "/invoices/" <> toS rawInvoiceId
+      finalReq = req{method="PUT", path=p}
+  (ZM.runRequestAndParseResponse finalReq) >>= \case
+    Left e -> pure $ Left e
+    Right (r :: ResponseWrapper "invoice" (Invoice cf)) -> pure $ Right $ unwrapResponse r
+  
+fetchRequest :: OrgId -> InvoiceId -> Request
+fetchRequest orgId InvoiceId{rawInvoiceId} = 
+  let params = Common.orgIdParam orgId
+  in ZO.prepareGet (Common.mkApiEndpoint $ "/invoices/" <> toS rawInvoiceId) params []
+
+fetch :: forall m cf . (HasZoho m, FromJSON cf) => OrgId -> InvoiceId -> m (Either Error (Invoice cf))
+fetch orgId objId = 
+  (ZM.runRequestAndParseResponse $  fetchRequest orgId objId) >>= \case
+    Left e -> pure $ Left e
+    Right (inv :: ResponseWrapper "invoice" (Invoice cf)) -> pure $ Right $ unwrapResponse inv
 
 deleteRequest :: OrgId -> InvoiceId -> Request
 deleteRequest orgId InvoiceId{rawInvoiceId} = 

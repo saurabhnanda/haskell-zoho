@@ -23,6 +23,7 @@ import Data.Time
 import Zoho.CRM.Common (ZohoResult(..))
 import Network.HTTP.Types as HT
 import qualified Data.ByteString as BS
+import Zoho.Books.Bill (BillId)
 
 newtype VendorCreditId = VendorCreditId { rawVendorCreditId :: Text} 
   deriving (Eq, Show, Generic, Ord)
@@ -39,7 +40,7 @@ data VendorCreditLineItem = VendorCreditLineItem
   , vcliQuantity :: !(Maybe Double)
   , vcliRate :: !(Maybe Double)
   , vcliTaxId :: !(Maybe TaxId)
-  -- , vcliGstTreatmentCode :: !(Maybe Text)
+  , vcliGstTreatmentCode :: !(Maybe Text)
   -- , vcliIsBillable :: !(Maybe Bool)
   } deriving (Eq, Show, Generic)
 $(makeLensesWith abbreviatedFields ''VendorCreditLineItem)
@@ -68,6 +69,8 @@ data VendorCredit cf = VendorCredit
   , vcAdjustmentDescription :: !(Maybe Text)
   , vcAdjustment :: !(Maybe Double)
   , vcCurrencyId :: !(Maybe CurrencyId)
+  , vcBillId :: !(Maybe Text)
+  , vcReferenceInvoiceType :: !(Maybe Text)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 $(makeLensesWith abbreviatedFields ''VendorCredit)
 
@@ -148,6 +151,34 @@ listRequest orgId ListOpts{..} =
                 Common.orgIdParam orgId
   in ZO.prepareGet (Common.mkApiEndpoint "/vendorcredits") params []
 
-list :: (HasZoho m, FromJSON cf) => OrgId -> ListOpts -> m (Either Error (PaginatedResponse "vendorcredits" [VendorCredit cf]))
+list :: (HasZoho m, FromJSON cf) => OrgId -> ListOpts -> m (Either Error (PaginatedResponse "vendor_credits" [VendorCredit cf]))
 list orgId opts = 
   ZM.runRequestAndParseResponse $ listRequest orgId opts
+
+
+data VendorCreditBill = VendorCreditBill
+  { vcbBillId :: !(Maybe BillId)
+  , vcbAmountApplied :: !(Maybe Double)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
+$(makeLensesWith abbreviatedFields ''VendorCreditBill)
+
+instance ToJSON VendorCreditBill where
+  toJSON = genericToJSON (zohoPrefix Casing.snakeCase)
+
+instance FromJSON VendorCreditBill where
+  parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase)
+
+
+applyToBillsRequest :: OrgId -> VendorCreditId -> [VendorCreditBill] -> Request
+applyToBillsRequest orgId VendorCreditId{..} vcbs = 
+  let params = Common.orgIdParam orgId
+      pload = ResponseWrapper vcbs :: ResponseWrapper "bills" [VendorCreditBill]
+  in ZO.prepareJSONPost (Common.mkApiEndpoint $ "/vendorcredits/" <> toS rawVendorCreditId <> "/bills") params [] pload
+
+applyToBills :: (HasZoho m) => OrgId -> VendorCreditId -> [VendorCreditBill] -> m (Either Error [VendorCreditBill])
+applyToBills orgId vcId vcbs = do
+  (ZM.runRequestAndParseResponse $ applyToBillsRequest orgId vcId vcbs) >>= \case
+    Left e -> 
+      pure $ Left e
+    Right (r :: ResponseWrapper "apply_to_bills" (ResponseWrapper "bills" [VendorCreditBill])) -> 
+      pure $ Right $ unwrapResponse $ unwrapResponse r

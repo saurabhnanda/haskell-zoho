@@ -33,7 +33,9 @@ library
       Zoho.Books.Bill
       Zoho.Books.Common
       Zoho.Books.Invoice
+      Zoho.Books.CreditNote
       Zoho.Books.VendorPayment
+      Zoho.Books.CustomerPayment
       Zoho.Books.VendorCredit
       Zoho.Books.Journal
       Zoho.Books.Item
