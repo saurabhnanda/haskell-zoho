@@ -75,12 +75,12 @@ instance ToJSON JournalLineItem where
 instance FromJSON JournalLineItem where
   parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase)
 
-data Journal cf = Journal
+data JournalPoly x cf = Journal
   { jJournalId :: !(Maybe JournalId)
   , jJournalDate :: !(Maybe Day)
   , jReferenceNumber :: !(Maybe Text)
   , jLineItems :: !(Maybe [JournalLineItem])
-  , jCustomFields :: !(Maybe [CustomField])
+  , jCustomFields :: !(Maybe x)
   , jOtherFields :: !(Maybe cf)
   , jNotes :: !(Maybe Text)
   , jJournalType :: !(Maybe JournalType)
@@ -88,7 +88,10 @@ data Journal cf = Journal
   , jJournalNumberPrefix :: !(Maybe Text)
   , jJournalNumberSuffix :: !(Maybe Text)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
-$(makeLensesWith abbreviatedFields ''Journal)
+
+type Journal = JournalPoly [CustomField]
+
+$(makeLensesWith abbreviatedFields ''JournalPoly)
 
 instance (ToJSON cf) => ToJSON (Journal cf) where
   toJSON :: ToJSON cf => Journal cf -> Value
@@ -102,9 +105,13 @@ instance (ToJSON cf) => ToJSON (Journal cf) where
 
 instance (FromJSON cf) => FromJSON (Journal cf) where
   parseJSON v = do
-    acc :: Journal OmitField <- genericParseJSON (zohoPrefix Casing.snakeCase) v
-    cf <- parseJSON v
-    pure acc{jOtherFields=cf}
+    acc :: JournalPoly (UnsafeEither String [CustomField]) OmitField <- genericParseJSON (zohoPrefix Casing.snakeCase) v
+    othFields <- parseJSON v
+    let prefinal = acc{jOtherFields=othFields}
+    case jCustomFields acc of
+      Nothing -> pure prefinal{jCustomFields=Nothing}
+      Just (UnsafeLeft _) -> pure prefinal{jCustomFields=Nothing}
+      Just (UnsafeRight cf) -> pure prefinal{jCustomFields=Just cf}
 
 -- instance ToJSON Expense where
 --   toJSON = genericToJSON (zohoPrefix Casing.snakeCase)
