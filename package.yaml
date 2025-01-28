@@ -90,4 +90,5 @@ library:
     - Zoho.CRM.Notes
     - Zoho.Desk.Ticket
     - Zoho.Desk.Thread
+    - Zoho.Desk.IM
     - Zoho.CRM.Common.Utils
