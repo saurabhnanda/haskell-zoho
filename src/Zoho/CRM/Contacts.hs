@@ -1,7 +1,11 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeApplications #-}
-module Zoho.CRM.Contacts where
+module Zoho.CRM.Contacts
+  ( module Zoho.Types
+  , module Zoho.CRM.Contacts
+  , module Common
+  ) where
 
 import Zoho.OAuth as ZO
 import Network.OAuth.OAuth2 as O
@@ -24,34 +28,10 @@ import Data.Aeson.Types as Aeson (Parser)
 import Zoho.ZohoM as ZM
 import Data.List.NonEmpty as NE
 import Data.Proxy
-import Zoho.CRM.Common.Utils (googleAdsJsonOptions, pascalSnakeCase)
-import Zoho.Types (zohoPrefix)
-
-data Approval = Approval
-  { apDelegate :: Maybe Bool -- delegate
-  , apApprove :: Maybe Bool
-  , apReject :: Maybe Bool
-  , apResubmit :: Maybe Bool
-  } deriving (Eq, Show, Generic, EmptyZohoStructure)
-
-emptyApproval :: Approval
-emptyApproval = emptyZohoStructure
-
-data ContactSpecialFields = ContactSpecialFields
-  { csfCurrencySymbol :: Maybe Text -- $currency_symbol
-  , csfState :: Maybe Text -- $state
-  , csfProcessFlow :: Maybe Bool -- $process_flow
-  , csfApproved :: Maybe Bool -- $approved
-  , csfApproval :: Approval  -- $approval
-  , csfEditable :: Maybe Bool -- $editable
-
-  -- TODO: Figure out what is "review" all about
-  -- , csfReviewProcess :: Maybe _ -- $review_process
-  -- , csvReview :: Maybe _ -- $review
-  } deriving (Eq, Show, Generic, EmptyZohoStructure)
-
-emptyContactSpeicalFields :: ContactSpecialFields
-emptyContactSpeicalFields = emptyZohoStructure
+import Zoho.CRM.Common.Utils (googleAdsJsonOptions)
+import Zoho.Types (zohoPrefix, pascalSnakeCase)
+import Prelude hiding (id)
+-- import Zoho.CRM.Common as L (record)
 
 type ContactId = Text
 
@@ -59,18 +39,18 @@ data Contact cf = Contact
   { contactVisitSummary :: Maybe VisitSummary
   , contactScoreSummary :: Maybe ScoreSummary
   , contactGoogleAdsInfo :: Maybe GoogleAdsInfo
-  , contactMetaData :: Maybe RecordMetaData
+  , contactMetaData :: Maybe MetaData
+  , contactRecordMetaData :: Maybe RecordMetaData
   , contactOtherFields :: Maybe cf
   , contactId :: Maybe ContactId
   , contactLastName :: Maybe Text
   , contactLeadSource :: Maybe Text
   } deriving (Show, Generic, EmptyZohoStructure)
 
+$(makeLensesWith abbreviatedFields ''Contact)
+
 emptyContact :: Contact cf
 emptyContact = emptyZohoStructure
-
-$(deriveJSON (zohoPrefix Casing.snakeCase) ''Approval)
-$(deriveJSON (zohoPrefix (('$':) . Casing.snakeCase)) ''ContactSpecialFields)
 
 contactParser :: (Aeson.Value -> Parser (Maybe cf)) -> Aeson.Value -> Parser (Contact cf)
 contactParser otherParser v = do
@@ -78,6 +58,7 @@ contactParser otherParser v = do
   contactScoreSummary <- parseJSON v
   contactGoogleAdsInfo <- parseJSON v
   contactMetaData <- parseJSON v
+  contactRecordMetaData <- parseJSON v
   contactOtherFields <- otherParser v
   case v of
     Aeson.Object o -> do
@@ -87,42 +68,37 @@ contactParser otherParser v = do
       pure Contact{..}
     x -> fail "Expecting an Object to parse into a Contact"
 
-instance {-# OVERLAPS #-} FromJSON (Contact ()) where
-  parseJSON = withObject "Exepcting a JSON object to parse into a Contact" $ \o -> do
-    let x = Object o
-    contactParser (const $ pure Nothing) x
-
 instance (FromJSON cf) => FromJSON (Contact cf) where
   parseJSON = withObject "Exepcting a JSON object to parse into a Contact" $ \o -> do
     let x = Object o
     contactParser parseJSON x
 
 instance (ToJSON cf) => ToJSON (Contact cf) where
-  toJSON Contact{..} =
+  toJSON c@Contact{..} =
     unsafeMergeObjects (toJSON contactVisitSummary) $
     unsafeMergeObjects (toJSON contactScoreSummary) $
     unsafeMergeObjects (toJSON contactGoogleAdsInfo) $
     unsafeMergeObjects (toJSON contactMetaData) $
     unsafeMergeObjects (toJSON contactOtherFields) $
+    unsafeMergeObjects (toJSON contactRecordMetaData) $
+    unsafeMergeObjects gclid_ $
     object $
       omitNothing "id" contactId <>
       omitNothing "Last_Name" contactLastName <>
       omitNothing "Lead_Source" contactLeadSource
     where
+      gclid_ =
+        case c ^? googleAdsInfo . _Just . gclid . _Just of
+          Nothing -> Aeson.object []
+          Just g -> Aeson.object [ "$gclid" Aeson..= g ]
       omitNothing k v = case v of
         Nothing -> []
         Just x -> [k Aeson..= x]
 
-$(makeLensesWith abbreviatedFields ''Approval)
-$(makeLensesWith abbreviatedFields ''Contact)
-$(makeLensesWith abbreviatedFields ''ContactSpecialFields)
-
-
-
 
 list :: (FromJSON (Contact cf), HasZoho m)
      => ListOptions
-     -> m (Either Error (Maybe (PaginatedResponse "data" [Contact cf])))
+     -> m (Either Error (PaginatedResponse "data" [Contact cf]))
 list listopts = R.list "Contacts" listopts
 
 getSpecific :: (FromJSON (Contact cf), HasZoho m)
@@ -162,5 +138,5 @@ delete contacts wfTrigger =
 search :: (HasZoho m, FromJSON (Contact cf))
        => SearchQuery
        -> SearchOpts
-       -> m (Either Error (Maybe (PaginatedResponse "data" [Contact cf])))
+       -> m (Either Error (PaginatedResponse "data" [Contact cf]))
 search q opts = R.search "Contacts" q opts

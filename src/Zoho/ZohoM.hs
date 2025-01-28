@@ -26,7 +26,7 @@ import qualified Control.Monad.Catch as E
 import Data.Either
 import Control.Retry as Retry
 import Network.Wreq.Types as W (ResponseChecker)
-import Debug.Trace
+-- import Debug.Trace
 import Data.Functor (void)
 import Data.Coerce (coerce)
 import qualified Zoho.OAuth as ZO
@@ -37,21 +37,24 @@ import Data.List as DL
 import UnliftIO.MVar
 import UnliftIO.IORef
 import Control.Monad.IO.Unlift
+import qualified Control.Concurrent.TokenBucket as TB
+import Control.Applicative ((<|>))
+import Debug.Trace
 
 class (MonadIO m, E.MonadMask m) => HasZoho m where
   refreshAccessToken :: AccessToken -> m (OAuth2Result TokenRequest.Errors (RefreshToken, AccessToken))
   getManager :: m Manager
   getRefreshToken :: m RefreshToken
   getAccessToken :: m AccessToken
-  -- setTokens :: (Maybe RefreshToken, Maybe AccessToken) -> m (RefreshToken, AccessToken)
   getOAuth2Credentials :: m OAuth2
   runRequest :: Request -> m (Response BSL.ByteString)
+  applyRateLimiter :: m ()
 
 data ZohoEnv = ZohoEnv
   { zenvTokenRef :: MVar (RefreshToken, AccessToken)
   , zenvManager :: Manager
   , zenvOAuth2 :: OAuth2
-  -- , zenvRefreshTokenLock :: MVar ()
+  , zenvTokenBucketWait :: IO ()
   }
 $(makeLensesWith abbreviatedFields ''ZohoEnv)
 
@@ -69,10 +72,12 @@ runZohoT :: (MonadIO m)
          -> m a
 runZohoT mgr oa rtkn mAtkn action = do
   tknRef <- newMVar (rtkn, fromMaybe (AccessToken "(none)") mAtkn)
+  tb <- liftIO TB.newTokenBucket
   let zenv = ZohoEnv
         { zenvTokenRef = tknRef
         , zenvManager = mgr
         , zenvOAuth2 = oa
+        , zenvTokenBucketWait = liftIO $ TB.tokenBucketWait tb 10 (100000 * 60 `div` 20)
         }
   runReaderT action zenv
 
@@ -86,6 +91,9 @@ instance (MonadIO m, E.MonadMask m, MonadUnliftIO m) => HasZoho (ZohoT m) where
   getAccessToken = do
     ref <- view tokenRef
     withMVar ref (pure . snd)
+  applyRateLimiter = do
+    x <- view tokenBucketWait
+    liftIO x
   -- setTokens (mrtkn, matkn) = do
   --   tknRef <- view tokenRef
   --   atomicModifyIORef' tknRef $ \(exrtkn, exatkn) ->
@@ -94,13 +102,12 @@ instance (MonadIO m, E.MonadMask m, MonadUnliftIO m) => HasZoho (ZohoT m) where
   --     in (x, x)
 
   refreshAccessToken failingAtkn = do
-    traceM "\n\n =======> REFRESH TOKEN ATTEMPT ========= \n\n"
     ref <- view tokenRef
     modifyMVar ref $ \curTkns@(rtkn, atkn) -> do
       if (coerce failingAtkn :: Text) /= (coerce atkn)
         -- This thread was trying to refresh the token, but it has already been
         -- refreshed by some other thread
-        then pure $ traceShowId (curTkns, Right curTkns)
+        then pure (curTkns, Right curTkns)
 
         -- This seems to tbe the first thread that is hitting this code-path. So
         -- it is responsibile for actually performing the token-refres
@@ -109,7 +116,7 @@ instance (MonadIO m, E.MonadMask m, MonadUnliftIO m) => HasZoho (ZohoT m) where
             pure (curTkns, Left e)
           Right oa@OAuth2Token{accessToken, refreshToken} ->
             let x = (fromMaybe rtkn refreshToken, accessToken)
-            in pure $ traceShow "\n\n =======> TOKEN REFRESHED ========= \n\n" (x, Right x)
+            in pure (x, Right x)
 
 
 handleOAuth2TokenResponse :: FromJSON err
@@ -124,8 +131,6 @@ defaultRefreshAccessToken :: (HasZoho m)
                           => RefreshToken
                           -> m (OAuth2Result TokenRequest.Errors OAuth2Token)
 defaultRefreshAccessToken (RefreshToken rtkn) = do
-  traceM "\n\n =======> ACTUAL REFRESH TOKEN ========= \n\n"
-
   mgr <- getManager
   OAuth2{oauthClientId, oauthClientSecret, oauthAccessTokenEndpoint } <- getOAuth2Credentials
   r <- defaultRunRequest False $
@@ -135,8 +140,6 @@ defaultRefreshAccessToken (RefreshToken rtkn) = do
        , ("client_secret", fromMaybe (Prelude.error "client_secret is required") oauthClientSecret)
        , ("grant_type", "refresh_token")
        ]
-
-  traceM $ "\n\n =======> TOKEN REFRESH RESPONSE: " <> show r
   pure $ ZO.parseResponseFlexible $ handleOAuth2TokenResponse r
 
 -- addAuthHeader :: (HasZoho m)
@@ -382,6 +385,7 @@ defaultRunRequest isAuthenticated req = do
           Right _ -> E.throwM ZohoRetriableException
 
     modifiedAction mgr RetryStatus{rsIterNumber} = do
+      void applyRateLimiter
       (mAtkn, r) <- case isAuthenticated of
         False ->
           (Nothing, ) <$> (liftIO $ retryOnTemporaryNetworkErrors $ httpLbs req mgr)
@@ -390,9 +394,9 @@ defaultRunRequest isAuthenticated req = do
           atkn <- getAccessToken
           (Just atkn,) <$> (liftIO $ retryOnTemporaryNetworkErrors $ ZO.runRequest finalReq mgr atkn)
 
-      traceM  $ "\n\n" <> show r <> "\n\n"
       case (HT.statusCode $ HC.responseStatus r) of
         200 -> pure r
+        202 -> pure r
         204 -> pure r
         201 -> pure r
         302 -> case DL.lookup "Location" (HC.responseHeaders r) of
@@ -402,12 +406,12 @@ defaultRunRequest isAuthenticated req = do
             then handleSecurityError mAtkn r
             else pure r
         401 ->
-          case (HC.responseBody r) ^? (key "code") of
+          case ((HC.responseBody r) ^? (key "code")) <|> ((HC.responseBody r) ^? (key "errorCode")) <|> ((HC.responseBody r) ^? (key "data") . (key "errorCode")) of
             Just (Aeson.String "INVALID_TOKEN") -> handleSecurityError mAtkn r
             Just (Aeson.String "INVALID_OAUTH") -> handleSecurityError mAtkn r
             Just (Aeson.Number 57) -> handleSecurityError mAtkn r
+            Just (Aeson.Number 8535) -> handleSecurityError mAtkn r
             _ -> throwHttpException r
-
         st -> if (isRetryableStatusCode st) && (rsIterNumber == (zohoMaximumRetries - 1))
               then E.throwM ZohoRetriableException
               else throwHttpException r

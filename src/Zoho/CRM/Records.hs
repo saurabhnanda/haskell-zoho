@@ -1,12 +1,13 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Zoho.CRM.Records where
 
 import Zoho.OAuth as ZO
 import Network.OAuth.OAuth2 as O
-import Network.Wreq as W hiding (Proxy(..))
+-- import Network.Wreq as W hiding (Proxy(..))
 import Data.ByteString as BS
 import Data.ByteString.Lazy as BSL
-import Network.Wreq as W
+-- import Network.Wreq as W
 import Data.Aeson as Aeson
 import Data.String.Conv
 import Network.HTTP.Client (Manager)
@@ -28,6 +29,24 @@ import GHC.Base (sconcat)
 import Data.Text.Conversions (ToText(..))
 import GHC.Generics
 
+
+type RecordId = Text
+
+data RecordMetaData = RecordMetaData
+  { rmdLastActivityTime :: Maybe ZonedTime
+  , rmdTag :: Maybe [Reference "name"]
+  , rmdLayout :: Maybe (Reference "name")
+  } deriving (Show, Generic, EmptyZohoStructure)
+
+instance Eq RecordMetaData where
+  (==) a b = (fmap zonedTimeToUTC $ rmdLastActivityTime a) == (fmap zonedTimeToUTC $ rmdLastActivityTime b) &&
+             (rmdTag a) == (rmdTag b) &&
+             (rmdLayout a) == (rmdLayout b)
+
+emptyRecordMetaData :: RecordMetaData
+emptyRecordMetaData = emptyZohoStructure
+
+
 apiEndpoint :: BS.ByteString -> URI
 apiEndpoint modApiName  = ZO.mkApiEndpoint $ "/crm/v2/" <> modApiName
 
@@ -36,6 +55,11 @@ apiEndpointStr modApiName = toS $ serializeURIRef' $ apiEndpoint modApiName
 
 
 data SortOrder = Asc | Desc deriving (Eq, Show, Ord, Enum)
+instance ToText SortOrder where
+  toText t = case t of
+    Asc -> "asc"
+    Desc -> "desc"
+
 data TriState = TriTrue | TriFalse | TriBoth deriving (Eq, Show, Ord, Enum)
 instance ToText TriState where
   toText t = case t of
@@ -70,33 +94,22 @@ data ListOptions = ListOptions
   , optApproved :: Maybe TriState
   , optPage :: Maybe Int
   , optPerPage :: Maybe Int
-  , optCustomViewId :: Maybe Int
-  , optTerritory :: Maybe (Int, Bool)
+  , optCustomViewId :: Maybe Text
+  , optTerritoryId :: Maybe Text
+  , optIncludeChildTerritories :: Maybe Bool
   , optModifiedAfter :: Maybe UTCTime
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
--- TODO: Make emptyZohoStructure out of this.
-defaultListOptions :: ListOptions
-defaultListOptions = ListOptions
-  { optFields = Nothing
-  , optSortOrder = Nothing
-  , optSortBy = Nothing
-  , optConverted = Nothing
-  , optApproved = Nothing
-  , optPage = Nothing
-  , optPerPage = Nothing
-  , optCustomViewId = Nothing
-  , optTerritory = Nothing
-  , optModifiedAfter = Nothing
-  }
 
+emptyListOptions :: ListOptions
+emptyListOptions = emptyZohoStructure
 
 list :: (FromJSON a, HasZoho m)
      => BS.ByteString
      -> ListOptions
-     -> m (Either Error (Maybe (PaginatedResponse "data" a)))
+     -> m (Either Error (PaginatedResponse "data" [a]))
 list modApiName listopts =
-  ZM.runRequestAndParseOptionalResponse Nothing Just $
+  ZM.runRequestAndParseOptionalResponse emptyPaginatedResponse Prelude.id $
   listRequest modApiName listopts
 
 
@@ -106,23 +119,23 @@ listRequest :: BS.ByteString
 listRequest modApiName ListOptions{..} =
   ZO.prepareGet (apiEndpoint modApiName) qparams headers
   where
-    applyOptionalParam k mVal opt = case mVal of
-      Nothing -> opt
-      Just val -> (k, Just $ toS val):opt
-
-    applyOptionalHeader h mVal hs = case mVal of
-      Nothing -> hs
-      Just val -> (h, toS val):hs
-
     iso8601 = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z"
 
     headers =
-      applyOptionalHeader hIfModifiedSince (fmap iso8601 optModifiedAfter)
+      applyOptionalHeader hIfModifiedSince (iso8601 <$> optModifiedAfter)
       []
 
     qparams =
-      applyOptionalParam "fields" (fmap (T.intercalate ",") optFields) $
-      applyOptionalParam "per_page" (fmap show optPerPage)
+      applyOptionalQueryParam "include_child" ((T.toLower . toS . show) <$> optIncludeChildTerritories) $
+      applyOptionalQueryParam "territory_id" optTerritoryId $
+      applyOptionalQueryParam "cvid" optCustomViewId $
+      applyOptionalQueryParam "per_page" (show <$> optPerPage) $
+      applyOptionalQueryParam "page" (show <$> optPage) $
+      applyOptionalQueryParam "approved" optApproved $
+      applyOptionalQueryParam "converted" optConverted $
+      applyOptionalQueryParam "sort_by" optSortBy $
+      applyOptionalQueryParam "sort_order" (toText <$> optSortOrder) $
+      applyOptionalCsvQueryParam "fields" optFields $
       []
 
 getSpecificRequest :: BS.ByteString
@@ -132,7 +145,7 @@ getSpecificRequest modApiName recordId =
   let url = uriAppendPathFragment ("/" <> toS recordId) (apiEndpoint modApiName)
   in ZO.prepareGet url  [] []
 
-getSpecific :: (HasZoho m, FromJSON a)
+getSpecific :: forall a m . (HasZoho m, FromJSON a)
             => BS.ByteString
             -> Text
             -> m (Either Error (Maybe a))
@@ -236,9 +249,17 @@ delete modApiName recordIds wfTrigger =
   Right (r :: ResponseWrapper "data" [DeleteResult]) ->
     pure $ Right $ unwrapResponse r
 
+
+data SearchTerm = OpEquals !ApiName !Text
+                | OpStartsWith !ApiName !Text
+                | OpAnd !SearchTerm !SearchTerm
+                | OpOr !SearchTerm !SearchTerm
+                deriving (Eq, Show)
+
 data SearchQuery = SearchEmail !Text
                  | SearchPhone !Text
                  | SearchWord !Text
+                 | SearchCriteria !SearchTerm
                  deriving (Eq, Show, Generic)
 
 data SearchOpts = SearchOpts
@@ -246,15 +267,10 @@ data SearchOpts = SearchOpts
   , soptsApproved :: Maybe TriState
   , soptsPage :: Maybe Int
   , soptsPerPage :: Maybe Int
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 emptySearchOpts :: SearchOpts
-emptySearchOpts = SearchOpts
-  { soptsConverted = Nothing
-  , soptsApproved = Nothing
-  , soptsPerPage = Nothing
-  , soptsPage = Nothing
-  }
+emptySearchOpts = emptyZohoStructure
 
 searchRequest :: BS.ByteString
               -> SearchQuery
@@ -266,20 +282,61 @@ searchRequest modApiName q SearchOpts{..} =
         SearchEmail e -> [("email", Just $ toS e)]
         SearchPhone p -> [("phone", Just $ toS p)]
         SearchWord w -> [("word", Just $ toS w)]
+        SearchCriteria critera -> [("criteria", Just $ toS $ "(" <> applySearchCriteria critera <> ")")]
       optparams = applyOptionalQueryParam "converted" soptsConverted $
                   applyOptionalQueryParam "approved" soptsApproved $
                   applyOptionalQueryParam "page" (show <$> soptsPage) $
                   applyOptionalQueryParam "per_page" (show <$> soptsPerPage) []
   in prepareGet url (searchparam <> optparams) []
+  where
+    applySearchCriteria c = case c of
+      OpEquals n v -> "(" <> n <> ":equals:" <> sanitise v <> ")"
+      OpStartsWith n v -> "(" <> n <> ":starts_with:" <> sanitise v <> ")"
+      OpAnd c1 c2 -> "(" <> applySearchCriteria c1 <> " and " <> applySearchCriteria c2 <> ")"
+      OpOr c1 c2 -> "(" <> applySearchCriteria c1 <> " or " <> applySearchCriteria c2 <> ")"
+    sanitise v =
+      T.replace "," "\\," $
+      T.replace ")" "\\)" $
+      T.replace "(" "\\(" v
 
 search :: (FromJSON a, HasZoho m)
        => BS.ByteString
        -> SearchQuery
        -> SearchOpts
-       -> m (Either Error (Maybe (PaginatedResponse "data" a)))
+       -> m (Either Error (PaginatedResponse "data" [a]))
 search modApiName q opts =
-  ZM.runRequestAndParseOptionalResponse Nothing Just $
+  ZM.runRequestAndParseOptionalResponse emptyPaginatedResponse Prelude.id $
   searchRequest modApiName q opts
+
+relatedList :: (FromJSON a, HasZoho m)
+            => BS.ByteString
+            -> RecordId
+            -> ApiName
+            -> Maybe ZonedTime
+            -> m (Either Error (PaginatedResponse "data" [a]))
+relatedList modApiName rid relModName modifiedAfter_ =
+  ZM.runRequestAndParseOptionalResponse emptyPaginatedResponse Prelude.id $
+  relatedListRequest modApiName rid relModName modifiedAfter_
+
+
+relatedListRequest :: BS.ByteString
+                   -> RecordId
+                   -> ApiName
+                   -> Maybe ZonedTime
+                   -> Request
+relatedListRequest modApiName rid relModName modifiedAfter_ =
+  let url = uriAppendPathFragment
+            ("/" <> toS rid <> "/" <> toS relModName)
+            (apiEndpoint modApiName)
+  in ZO.prepareGet url [] headers
+  where
+    iso8601 = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z"
+
+    headers =
+      applyOptionalHeader hIfModifiedSince (iso8601 <$> modifiedAfter_)
+      []
+
+
 
 -- * Internal helper function
 --
@@ -311,4 +368,9 @@ insertUpdateHelper method modApiName mPathFragment records tsetting mDupCheckFie
     wrappedRecords :: ResponseWrapper "data" [a]
     wrappedRecords = ResponseWrapper records
 
+
+$(makeLensesWith abbreviatedFields ''SearchOpts)
+$(makeLensesWith abbreviatedFields ''ListOptions)
+$(deriveJSON (zohoPrefix pascalSnakeCase) ''RecordMetaData)
+$(makeLensesWith abbreviatedFields ''RecordMetaData)
 

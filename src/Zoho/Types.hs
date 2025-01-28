@@ -26,6 +26,8 @@ import Data.ByteString.Lazy as BSL
 import Network.OAuth.OAuth2 (OAuth2Error)
 import qualified Network.OAuth.OAuth2.TokenRequest as TokenRequest (Errors)
 import Control.Lens hiding ((.=), to)
+import Prelude hiding (id)
+import Control.Applicative ((<|>))
 
 data NoCustomFields = NoCustomFields deriving (Eq, Show)
 
@@ -34,6 +36,15 @@ instance ToJSON NoCustomFields where
 
 instance FromJSON NoCustomFields where
   parseJSON _ = pure NoCustomFields
+
+data OmitField = OmitField deriving (Eq, Show)
+
+instance ToJSON OmitField where
+  toJSON _ = Aeson.Null
+
+instance FromJSON OmitField where
+  parseJSON _ = pure OmitField
+
 
 type ApiName = Text
 
@@ -51,21 +62,30 @@ instance (ToJSON a, KnownSymbol s) => ToJSON (ResponseWrapper s a) where
 
 data PaginatedResponse (s :: Symbol) a = PaginatedResponse
   { pageActualData :: a
-  , pageRecordsPerPage :: Int
-  , pageTotalPages :: Int
-  , pageCurrentPage :: Int
+  , pageRecordsPerPage :: Maybe Int
+  , pageCount :: Maybe Int
+  , pageCurrentPage :: Maybe Int
   , pageMoreRecords :: Bool
   } deriving (Eq, Show)
 $(makeLensesWith abbreviatedFields ''PaginatedResponse)
 
+emptyPaginatedResponse :: PaginatedResponse s [a]
+emptyPaginatedResponse = PaginatedResponse
+  { pageActualData = []
+  , pageRecordsPerPage = Nothing
+  , pageCount = Nothing
+  , pageCurrentPage = Nothing
+  , pageMoreRecords = False
+  }
+
 instance (FromJSON a, KnownSymbol s) => FromJSON (PaginatedResponse s a) where
   parseJSON = withObject "Expecting Object to parse into a PaginatedResponse" $ \o -> do
     pageActualData <- o .: (toS $ symbolVal (Proxy :: Proxy s))
-    info_ <- o .: "info"
-    pageRecordsPerPage <- info_ .: "per_page"
-    pageTotalPages <- info_ .: "count"
-    pageCurrentPage <- info_ .: "page"
-    pageMoreRecords <- info_ .: "more_records"
+    info_ <- (o .: "info") <|> (o .: "page_context")
+    pageRecordsPerPage <- info_ .:? "per_page"
+    pageCount <- info_ .:? "count"
+    pageCurrentPage <- info_ .:? "page"
+    pageMoreRecords <- (info_ .: "more_records") <|> (info_ .: "has_more_page")
     pure PaginatedResponse{..}
 
 moduleJsonFieldNameMapping :: String -> String
@@ -104,6 +124,7 @@ instance (KnownSymbol s) => ToJSON (Reference s) where
     , (toS $ symbolVal (Proxy :: Proxy s)) .= refName
     ]
 
+$(makeLensesWith abbreviatedFields ''Reference)
 
   -- default emptyZohoStructure :: (Generic a, (GEmptyZohoStructure (Rep a))) => a
   -- emptyZohoStructure = GHC.Generics.to gEmptyZohoStructure
@@ -187,5 +208,17 @@ instance EmptyZohoStructure [a] where
 zohoPrefix :: (String -> String)
            -> Aeson.Options
 zohoPrefix fn = (Casing.aesonPrefix fn){omitNothingFields=True}
+
+pascalSnakeCase :: String -> String
+pascalSnakeCase s = case (go False s) of
+  [] -> []
+  x:xs -> (Char.toUpper x):xs
+  where
+    go _ [] = []
+    go isPrevLower (x:xs) = if Char.isLower x
+                            then x:(go True xs)
+                            else if isPrevLower
+                                 then '_':x:(go False xs)
+                                 else x:(go False xs)
 
 newtype OrgId = OrgId Text deriving (Eq, Show, Ord)

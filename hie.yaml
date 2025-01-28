@@ -1,0 +1,4 @@
+cradle:
+  stack:
+    component: "haskell-zoho:lib"
+    

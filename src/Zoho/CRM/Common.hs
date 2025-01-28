@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 module Zoho.CRM.Common where
 
 import Zoho.OAuth as ZO
@@ -9,13 +10,41 @@ import Data.Aeson as Aeson
 import Data.Aeson.TH
 import Data.Aeson.Casing as Casing
 import Data.Text as Text
-import Zoho.CRM.Common.Utils (googleAdsJsonOptions, pascalSnakeCase)
-import Zoho.Types (zohoPrefix)
+import Zoho.CRM.Common.Utils (googleAdsJsonOptions)
+import Zoho.Types (zohoPrefix, pascalSnakeCase)
 import Control.Lens
 import GHC.Generics
 import Data.Aeson.Types as Aeson (Parser)
 import Debug.Trace
 import Control.Applicative ((<|>))
+import Data.String.Conv (toS)
+
+data Approval = Approval
+  { apDelegate :: Maybe Bool -- delegate
+  , apApprove :: Maybe Bool
+  , apReject :: Maybe Bool
+  , apResubmit :: Maybe Bool
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
+emptyApproval :: Approval
+emptyApproval = emptyZohoStructure
+
+
+data SpecialFields = SpecialFields
+  { csfCurrencySymbol :: Maybe Text -- $currency_symbol
+  , csfState :: Maybe Text -- $state
+  , csfProcessFlow :: Maybe Bool -- $process_flow
+  , csfApproved :: Maybe Bool -- $approved
+  , csfApproval :: Maybe Approval  -- $approval
+  , csfEditable :: Maybe Bool -- $editable
+
+  -- TODO: Figure out what is "review" all about
+  -- , csfReviewProcess :: Maybe _ -- $review_process
+  -- , csvReview :: Maybe _ -- $review
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
+emptySpecialFields :: SpecialFields
+emptySpecialFields = emptyZohoStructure
 
 data VisitSummary = VisitSummary
   { vsFirstVisitedTime :: Maybe ZonedTime
@@ -67,7 +96,7 @@ instance EmptyZohoStructure ScoreSummary where
   emptyZohoStructure = emptyScoreSummary
 
 data GoogleAdsInfo = GoogleAdsInfo
-  { gadsGCLID :: Maybe Text
+  { gadsGclid :: Maybe Text
   , gadsClickType :: Maybe Text
   , gadsAdNetwork :: Maybe Text
   , gadsAdCampaignName :: Maybe Text
@@ -82,54 +111,28 @@ data GoogleAdsInfo = GoogleAdsInfo
   , gadsKeyword :: Maybe Text
   , gadsDeviceType :: Maybe Text
   , gadsSearchPartnerNetwork :: Maybe Text
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 emptyGoogleAdsInfo :: GoogleAdsInfo
-emptyGoogleAdsInfo = GoogleAdsInfo
-  { gadsGCLID = Nothing
-  , gadsClickType = Nothing
-  , gadsAdNetwork = Nothing
-  , gadsAdCampaignName = Nothing
-  , gadsAd = Nothing
-  , gadsAdGroupName = Nothing
-  , gadsClickDate = Nothing
-  , gadsCostPerClick = Nothing
-  , gadsCostPerConversion = Nothing
-  , gadsConversionExportStatus = Nothing
-  , gadsConversionExportedOn = Nothing
-  , gadsReasonForConversionFailure = Nothing
-  , gadsKeyword = Nothing
-  , gadsDeviceType = Nothing
-  , gadsSearchPartnerNetwork = Nothing
-  }
+emptyGoogleAdsInfo = emptyZohoStructure
 
-instance EmptyZohoStructure GoogleAdsInfo where
-  emptyZohoStructure = emptyGoogleAdsInfo
-
-
-data RecordMetaData = RecordMetaData
+data MetaData = MetaData
   { rmdCreatedTime :: Maybe ZonedTime
   , rmdModifiedTime :: Maybe ZonedTime
   , rmdCreatedBy :: Maybe (Reference "name")
   , rmdModifiedBy :: Maybe (Reference "name")
   , rmdOwner :: Maybe (Reference "name")
-  , rmdLastActivityTime :: Maybe ZonedTime
-  , rmdTag :: Maybe [Reference "name"]
-  } deriving (Show)
+  } deriving (Show, Generic, EmptyZohoStructure)
 
-emptyRecordMetaData :: RecordMetaData
-emptyRecordMetaData = RecordMetaData
-  { rmdCreatedTime = Nothing
-  , rmdModifiedTime = Nothing
-  , rmdCreatedBy = Nothing
-  , rmdModifiedBy = Nothing
-  , rmdOwner = Nothing
-  , rmdLastActivityTime = Nothing
-  , rmdTag = Nothing
-  }
+instance Eq MetaData where
+  (==) a b = (rmdCreatedBy a) == (rmdCreatedBy b) &&
+             (rmdModifiedBy a) == (rmdModifiedBy b) &&
+             (rmdOwner a) == (rmdOwner b) &&
+             (fmap zonedTimeToUTC $ rmdCreatedTime a) == (fmap zonedTimeToUTC $ rmdCreatedTime b) &&
+             (fmap zonedTimeToUTC $ rmdModifiedTime a) == (fmap zonedTimeToUTC $ rmdModifiedTime b)
 
-instance EmptyZohoStructure RecordMetaData where
-  emptyZohoStructure = emptyRecordMetaData
+emptyMetaData :: MetaData
+emptyMetaData = emptyZohoStructure
 
 data OnlyMetaData = OnlyMetaData
   { omdCreatedTime :: ZonedTime
@@ -147,20 +150,29 @@ instance FromJSON OnlyId where
     unwrapId <- o .: "id"
     pure OnlyId{..}
 
-data ZohoCode = ZCodeInvalidIToken
+data ZohoCode = ZCodeInvalidToken
               | ZCodeSuccess
+              | ZCodeInvalidData
               | ZCodeOther !Text
               deriving (Eq, Show, Generic, Ord)
 
 instance FromJSON ZohoCode where
-  parseJSON = withText "Expecting text to parse into ZohoCode" $ \t -> pure $ case t of
-    "INVALID_TOKEN" -> ZCodeInvalidIToken
-    "INVALID_OAUTH" -> ZCodeInvalidIToken
-    "SUCCESS" -> ZCodeSuccess
-    _ -> ZCodeOther t
+  parseJSON v = 
+    case v of
+      Aeson.String t -> pure $ case t of
+        "INVALID_TOKEN" -> ZCodeInvalidToken
+        "INVALID_OAUTH" -> ZCodeInvalidToken
+        "INVALID_DATA" -> ZCodeInvalidData
+        "SUCCESS" -> ZCodeSuccess
+        _ -> ZCodeOther t
+      Aeson.Number n -> 
+        if n==0 then pure ZCodeSuccess else pure $ ZCodeOther $ toS $ show n
+      _ -> 
+        fail "Expecting a Text or Number to parse into ZohoStatus"
 
 data ZohoStatus = ZStatusError
                 | ZStatusSuccess
+                | ZStatusMissing
                 | ZStatusOther !Text
                 deriving (Eq, Show, Generic, Ord)
 
@@ -176,57 +188,83 @@ data UpsertAction = UAInsert
                   deriving (Eq, Show)
 
 instance FromJSON UpsertAction where
-  parseJSON v = (flip (withObject "Expecting Object to parse into an UpserResult")) v $ \o -> do
+  parseJSON v = (flip (withObject "Expecting Object to parse into an UpsertAction")) v $ \o -> do
     ma <- o .:? "action"
     mf <- o .:? "duplicate_field"
-    case traceShowId (ma, mf) of
+    case (ma, mf) of
       (Just "insert", _) -> pure UAInsert
       (Just "update", Just f) -> pure $ UAUpdate f
       _ -> pure $ UAOther ma mf
 
-data ZohoResult details upsert = ZohoResult
+data ZohoResult metadata action = ZohoResult
   { zresCode :: !ZohoCode
-  , zresDetails :: !details
+  , zresMetaData :: !(Maybe metadata)
+  , zresDetails :: !Aeson.Value
   , zresMessage :: !Text
   , zresStatus :: !ZohoStatus
-  , zresUpsertAction :: !upsert
+  , zresAction :: !(Maybe action)
   } deriving (Eq, Show, Generic)
 
-type InsertResult = ZohoResult OnlyMetaData ()
-type UpdateResult = ZohoResult OnlyMetaData ()
+type InsertResult = ZohoResult OnlyMetaData OmitField
+type UpdateResult = ZohoResult OnlyMetaData OmitField
 type UpsertResult = ZohoResult OnlyMetaData UpsertAction
-type DeleteResult = ZohoResult OnlyId ()
+type DeleteResult = ZohoResult OnlyId OmitField
 
-instance {-# OVERLAPS #-} FromJSON (ZohoResult () ()) where
-  parseJSON = zohoResultParser (const $ pure ()) (const $ pure ())
+instance (FromJSON metadata, FromJSON action) => FromJSON (ZohoResult metadata action) where
+  parseJSON = withObject "Expecting Object to parse into ZohoResult" $ \o -> do
+    zresCode <- (o .: "code") <|> (o .: "errorCode")
+    zresMetaData <- (o .: "details") <|> (pure Nothing)
+    zresDetails <- (o .:? "details") >>= \case
+      Nothing -> pure Aeson.Null
+      Just x -> pure x
+    zresMessage <- o .: "message"
+    zresStatus <- (optionalStatus o) <|> (pure ZStatusError)
+    zresAction <- (parseJSON (Aeson.Object o)) <|> (pure Nothing)
+    pure ZohoResult{..}
+    where
+      optionalStatus o =
+        (o .:? "status") >>= \case
+          Nothing -> pure ZStatusMissing
+          Just x -> pure x
 
-instance {-# OVERLAPS #-} (FromJSON details) => FromJSON (ZohoResult details ()) where
-  parseJSON = zohoResultParser parseJSON (const $ pure ())
+-- instance {-# OVERLAPS #-} FromJSON (ZohoResult () ()) where
+--   parseJSON = zohoResultParser (const $ pure ()) (const $ pure ())
 
-instance (FromJSON details, FromJSON upsert) => FromJSON (ZohoResult details upsert) where
-  parseJSON = zohoResultParser parseJSON parseJSON
+-- instance {-# OVERLAPS #-} (FromJSON details) => FromJSON (ZohoResult details ()) where
+--   parseJSON = zohoResultParser parseJSON (const $ pure ())
 
-zohoResultParser :: (FromJSON details)
-                 => (Aeson.Value -> Parser details)
-                 -> (Aeson.Value -> Parser upsert)
-                 -> Aeson.Value
-                 -> Parser (ZohoResult details upsert)
-zohoResultParser dparser uparser v =
-  (flip (withObject "Expecting Object to parse into an UpserResult")) v $ \o -> do
-  zresCode <- (o .: "code") <|> (o .: "errorCode")
-  zresMessage <- o .: "message"
-  zresStatus <- (o .: "status") <|> (pure ZStatusError)
-  zresDetails <- dparser v
-  zresUpsertAction <- uparser v
-  pure ZohoResult{..}
+-- instance (FromJSON details, FromJSON action) => FromJSON (ZohoResult details action) where
+--   parseJSON = withObject "Expected object to parse into ZohoResult" $ \o -> do
+--     zresCode <- o .: "code"
+--     zres
+
+-- zohoResultParser :: (FromJSON details)
+--                  => (Aeson.Value -> Parser details)
+--                  -> (Aeson.Value -> Parser upsert)
+--                  -> Aeson.Value
+--                  -> Parser (ZohoResult details upsert)
+-- zohoResultParser dparser uparser v =
+--   (flip (withObject "Expecting Object to parse into an UpserResult")) v $ \o -> do
+--   zresCode <- (o .: "code") <|> (o .: "errorCode")
+--   zresMessage <- o .: "message"
+--   zresStatus <- (o .: "status") <|> (pure ZStatusError)
+--   zresDetails <- dparser v
+--   zresUpsertAction <- uparser v
+--   pure ZohoResult{..}
 
 $(deriveJSON (zohoPrefix pascalSnakeCase) ''VisitSummary)
 $(deriveJSON (zohoPrefix pascalSnakeCase) ''ScoreSummary)
-$(deriveJSON (zohoPrefix pascalSnakeCase) ''RecordMetaData)
-$(deriveJSON googleAdsJsonOptions ''GoogleAdsInfo)
 $(deriveJSON (zohoPrefix pascalSnakeCase) ''OnlyMetaData)
+$(deriveJSON (zohoPrefix pascalSnakeCase) ''MetaData)
+$(deriveJSON googleAdsJsonOptions ''GoogleAdsInfo)
+$(deriveJSON (zohoPrefix Casing.snakeCase) ''Approval)
+$(deriveJSON (zohoPrefix (('$':) . Casing.snakeCase)) ''SpecialFields)
+-- $(deriveFromJSON (zohoPrefix Casing.snakeCase) ''ZohoResult)
 $(makeLensesWith abbreviatedFields ''VisitSummary)
 $(makeLensesWith abbreviatedFields ''ScoreSummary)
-$(makeLensesWith abbreviatedFields ''RecordMetaData)
+$(makeLensesWith abbreviatedFields ''MetaData)
 $(makeLensesWith abbreviatedFields ''GoogleAdsInfo)
 $(makeLensesWith abbreviatedFields ''OnlyMetaData)
+$(makeLensesWith abbreviatedFields ''Approval)
+$(makeLensesWith abbreviatedFields ''SpecialFields)
+$(makeLensesWith abbreviatedFields ''ZohoResult)
