@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -53,6 +53,7 @@ library
   other-modules:
       Main
       Zoho.CRM.Modules
+      Zoho.Desk.IM
       Paths_haskell_zoho
   hs-source-dirs:
       src
@@ -76,6 +77,7 @@ library
     , aeson-casing
     , base >=4.7 && <5
     , bytestring
+    , case-insensitive
     , connection
     , containers
     , exceptions
