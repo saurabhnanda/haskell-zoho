@@ -38,6 +38,7 @@ dependencies:
   - unliftio
   - unliftio-core
   - token-bucket
+  - case-insensitive
 
 default-extensions:
   - TemplateHaskell
