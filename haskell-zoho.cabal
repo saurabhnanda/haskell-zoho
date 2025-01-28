@@ -49,11 +49,11 @@ library
       Zoho.CRM.Notes
       Zoho.Desk.Ticket
       Zoho.Desk.Thread
+      Zoho.Desk.IM
       Zoho.CRM.Common.Utils
   other-modules:
       Main
       Zoho.CRM.Modules
-      Zoho.Desk.IM
       Paths_haskell_zoho
   hs-source-dirs:
       src
