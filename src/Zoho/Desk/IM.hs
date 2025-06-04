@@ -24,6 +24,7 @@ data ZohoDeskInitiateIMSessionReq = ZohoDeskInitiateIMSessionReq
   , reqCannedMessageId     :: !Text         -- Template message ID
   , reqLanguage            :: !Text         -- Language code (e.g. "en")
   , reqMessage             :: !Text         -- The message content
+  , reqHeaderMessage       :: !(Maybe Text) -- optional header content
   } deriving (Show, Generic)
 
 instance ToJSON ZohoDeskInitiateIMSessionReq where
