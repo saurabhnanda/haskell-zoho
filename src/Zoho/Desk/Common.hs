@@ -30,6 +30,11 @@ type AccountId = Text
 type AssigneeId = Text
 type TeamId = Text
 type ViewId = Text
+type ArticleId = Text
+type CategoryId = Text
+type AuthorId = Text
+type TranslationId = Text
+
 
 -- data ErrorCode = ZInvalidToken
 --                | ZCodeOther !Text

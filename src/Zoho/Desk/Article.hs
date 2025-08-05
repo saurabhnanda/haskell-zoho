@@ -14,21 +14,15 @@ import qualified Data.Aeson.Casing as Casing
 import Data.Aeson as Aeson
 import Data.Aeson.TH as Aeson
 import Control.Lens (makeLensesWith, abbreviatedFields)
-import Zoho.OAuth as ZO
+import Zoho.OAuth as ZO (prepareGet, applyOptionalQueryParam)
 import Network.HTTP.Client as HC (Request)
 import Zoho.Desk.Common as Common
 import Zoho.ZohoM as ZM
 import Data.String.Conv (toS)
 import Control.Monad (join)
 import Text.Read (readMaybe)
-import qualified Data.Vector as V
 import Network.HTTP.Types as HT
-
-type ArticleId = Text
-type CategoryId = Text
-type AuthorId = Text
-type DepartmentId = Text
-type TranslationId = Text
+import Zoho.Types
 
 -- | User object (used for author, owner, etc.)
 data ArticleUser = ArticleUser
@@ -101,30 +95,30 @@ data Article = Article
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 -- | Options for listing articles (based on actual API spec)
-data ListArticlesOptions = ListArticlesOptions
-  { laoFrom :: !(Maybe Int)
-  , laoLimit :: !(Maybe Int)
-  , laoSortBy :: !(Maybe Text)  -- "createdTime", "modifiedTime", "likeCount", "viewCount", "feedbackCount", "dislikeCount", "positionArticle"
-  , laoPermission :: !(Maybe Text)  -- "ALL", "REGISTEREDUSERS", "AGENTS"
-  , laoAuthorId :: !(Maybe Text)
-  , laoCategoryId :: !(Maybe CategoryId)
-  , laoModifiedTimeRange :: !(Maybe Text)  -- ISO format: 'yyyy-MM-ddThh:mm:ss.SSSZ,yyyy-MM-ddThh:mm:ss.SSSZ'
-  , laoExpiryTimeRange :: !(Maybe Text)  -- ISO format
-  , laoStatus :: !(Maybe Text)  -- "Draft", "Published", "Review", "Expired", "Unpublished"
-  } deriving (Eq, Show, Generic)
+data ListOptions = ListOptions
+  { optFrom :: !(Maybe Int)
+  , optLimit :: !(Maybe Int)
+  , optSortBy :: !(Maybe Text)  -- "createdTime", "modifiedTime", "likeCount", "viewCount", "feedbackCount", "dislikeCount", "positionArticle"
+  , optPermission :: !(Maybe Text)  -- "ALL", "REGISTEREDUSERS", "AGENTS"
+  , optAuthorId :: !(Maybe Text)
+  , optCategoryId :: !(Maybe CategoryId)
+  , optModifiedTimeRange :: !(Maybe Text)  -- ISO format: 'yyyy-MM-ddThh:mm:ss.SSSZ,yyyy-MM-ddThh:mm:ss.SSSZ'
+  , optExpiryTimeRange :: !(Maybe Text)  -- ISO format
+  , optStatus :: !(Maybe Text)  -- "Draft", "Published", "Review", "Expired", "Unpublished"
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 emptyArticle :: Article
 emptyArticle = emptyZohoStructure
 
-emptyListArticlesOptions :: ListArticlesOptions
-emptyListArticlesOptions = ListArticlesOptions Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+emptyListOptions :: ListOptions
+emptyListOptions = emptyZohoStructure
 
 -- Generate lenses
 $(makeLensesWith abbreviatedFields ''Article)
 $(makeLensesWith abbreviatedFields ''ArticleUser)
 $(makeLensesWith abbreviatedFields ''ArticleCategory)
 $(makeLensesWith abbreviatedFields ''ArticleAttachment)
-$(makeLensesWith abbreviatedFields ''ListArticlesOptions)
+$(makeLensesWith abbreviatedFields ''ListOptions)
 
 -- JSON options for articles
 articleJsonOptions :: Aeson.Options
@@ -164,48 +158,45 @@ instance FromJSON ArticleAttachment where
 instance ToJSON ArticleAttachment where
   toJSON = genericToJSON articleAttachmentJsonOptions
 
--- Lens class instances for common search parameters
-instance HasFrom ListArticlesOptions (Maybe Int) where from = laoFrom
-instance HasLimit ListArticlesOptions (Maybe Int) where limit = laoLimit
-instance HasId ListArticlesOptions (Maybe Text) where id = const (const emptyListArticlesOptions)
-instance HasAll ListArticlesOptions (Maybe Bool) where all = const (const emptyListArticlesOptions)
-instance HasCreatedTimeRange ListArticlesOptions (Maybe (UTCTime, UTCTime)) where createdTimeRange = const (const emptyListArticlesOptions)
-instance HasModifiedTimeRange ListArticlesOptions (Maybe (UTCTime, UTCTime)) where modifiedTimeRange = const (const emptyListArticlesOptions)
+
+-- | Create request for listing articles
+listArticlesRequest :: ListOptions -> OrgId -> Request
+listArticlesRequest opts orgId =
+  prepareGet (mkApiEndpoint "/articles") (buildArticleQuery opts) [orgIdHeader orgId]
 
 -- | List all articles with optional filtering
-listArticles :: ZohoM m => OrgId -> ListArticlesOptions -> m (SearchResults Article)
-listArticles orgId opts = do
-  let endpoint = mkApiEndpoint "/articles"
-      headers = [orgIdHeader orgId]
-      queryParams = buildArticleQuery opts
-  
-  ZM.get endpoint headers queryParams
+listArticles :: HasZoho m => ListOptions -> OrgId -> m (Either Error [Article])
+listArticles opts orgId = do
+  x :: Either Error (ResponseWrapper "data" [Article]) <-
+    ZM.runRequestAndParseOptionalResponse (ResponseWrapper []) Prelude.id $
+    listArticlesRequest opts orgId
+  pure $ fmap unwrapResponse x
 
--- | Get a specific article by ID with optional version
-getArticle :: ZohoM m => OrgId -> ArticleId -> Maybe Text -> m Article
-getArticle orgId articleId maybeVersion = do
+-- | Create request for getting a specific article by ID
+getArticleRequest :: OrgId -> ArticleId -> Maybe Text -> Request
+getArticleRequest orgId articleId maybeVersion =
   let endpoint = mkApiEndpoint $ "/articles/" <> toS articleId
       headers = [orgIdHeader orgId]
       queryParams = case maybeVersion of
         Nothing -> []
         Just version -> [("version", Just $ toS version)]
-  
-  ZM.get endpoint headers queryParams
+  in prepareGet endpoint queryParams headers
+
+-- | Get a specific article by ID with optional version
+getArticle :: HasZoho m => OrgId -> ArticleId -> Maybe Text -> m (Either Error Article)
+getArticle orgId articleId maybeVersion =
+  ZM.runRequestAndParseResponse $
+  getArticleRequest orgId articleId maybeVersion
 
 -- | Build query parameters for article listing (based on actual API spec)
-buildArticleQuery :: ListArticlesOptions -> HT.Query
+buildArticleQuery :: ListOptions -> HT.Query
 buildArticleQuery opts = 
-  applyOptionalQueryParam "status" (laoStatus opts) $
-  applyOptionalQueryParam "categoryId" (laoCategoryId opts) $
-  applyOptionalQueryParam "sortBy" (laoSortBy opts) $
-  applyOptionalQueryParam "permission" (laoPermission opts) $
-  applyOptionalQueryParam "authorId" (laoAuthorId opts) $
-  applyOptionalQueryParam "modifiedTimeRange" (laoModifiedTimeRange opts) $
-  applyOptionalQueryParam "expiryTimeRange" (laoExpiryTimeRange opts) $
-  applyOptionalQueryParam "from" (show <$> laoFrom opts) $
-  applyOptionalQueryParam "limit" (show <$> laoLimit opts) []
-
--- | Helper to apply optional query parameters
-applyOptionalQueryParam :: ToS a => HT.HeaderName -> Maybe a -> HT.Query -> HT.Query
-applyOptionalQueryParam _ Nothing query = query
-applyOptionalQueryParam key (Just value) query = (key, Just $ toS value) : query
+  applyOptionalQueryParam "status" (optStatus opts) $
+  applyOptionalQueryParam "categoryId" (optCategoryId opts) $
+  applyOptionalQueryParam "sortBy" (optSortBy opts) $
+  applyOptionalQueryParam "permission" (optPermission opts) $
+  applyOptionalQueryParam "authorId" (optAuthorId opts) $
+  applyOptionalQueryParam "modifiedTimeRange" (optModifiedTimeRange opts) $
+  applyOptionalQueryParam "expiryTimeRange" (optExpiryTimeRange opts) $
+  applyOptionalQueryParam "from" (show <$> optFrom opts) $
+  applyOptionalQueryParam "limit" (show <$> optLimit opts) []
