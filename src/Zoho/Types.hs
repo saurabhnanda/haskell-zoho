@@ -209,6 +209,36 @@ zohoPrefix :: (String -> String)
            -> Aeson.Options
 zohoPrefix fn = (Casing.aesonPrefix fn){omitNothingFields=True}
 
+-- | Helper function to create JSON options that drop a constructor prefix
+-- and apply casing transformation to constructor names.
+-- 
+-- Usage:
+-- @
+-- instance ToJSON ConversationType where
+--   toJSON = genericToJSON $ constructorDrop 4 camelCase
+-- @
+constructorDrop :: Int -> (String -> String) -> Aeson.Options
+constructorDrop n caseFn = defaultOptions
+  { constructorTagModifier = caseFn . DL.drop n
+  }
+
+-- | Opinionated JSON options using zohoPrefix with automatic Typ → type handling
+-- After prefix drop and casing, converts exactly "typ"/"TYP"/"Typ" to appropriate "type" form
+-- 
+-- Usage:
+-- @
+-- instance FromJSON ConversationAuthor where
+--   parseJSON = genericParseJSON $ zohoPrefixTyp Casing.camelCase
+-- @
+zohoPrefixTyp :: (String -> String) -> Aeson.Options
+zohoPrefixTyp caseFn = zohoPrefix (handleTyp . caseFn)
+  where 
+    handleTyp x = case x of
+      "typ" -> "type"
+      "TYP" -> "TYPE"
+      "Typ" -> "Type"
+      _ -> x
+
 pascalSnakeCase :: String -> String
 pascalSnakeCase s = case (go False s) of
   [] -> []

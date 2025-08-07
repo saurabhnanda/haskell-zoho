@@ -12,9 +12,7 @@ import Zoho.Types
 import GHC.Generics (Generic)
 import qualified Data.Aeson.Casing as Casing
 import Data.Aeson as Aeson
-import Data.Aeson.TH as Aeson
 import Control.Lens (makeLensesWith, abbreviatedFields, (&), (?~))
-import Zoho.Desk.Utils (threadStatusJsonOptions, threadJsonOptions)
 import Zoho.OAuth as ZO
 import Network.HTTP.Client as HC (Request)
 import Zoho.Desk.Common as Common
@@ -22,6 +20,7 @@ import Zoho.ZohoM as ZM
 import Data.String.Conv (toS)
 import Control.Monad (join)
 import Text.Read (readMaybe)
+import Data.Char (toUpper)
 
 data Visibility = VisiblePublic
                 | VisiblePrivate
@@ -45,9 +44,17 @@ data Status = Success
             | Failed
             | Pending
             | Draft
-            deriving (Eq, Show, Enum, Ord)
+            deriving (Eq, Show, Enum, Ord, Generic)
 
-$(deriveJSON threadStatusJsonOptions ''Status)
+instance ToJSON Status where
+  toJSON = genericToJSON $ defaultOptions
+    { constructorTagModifier = map toUpper
+    }
+
+instance FromJSON Status where
+  parseJSON = genericParseJSON $ defaultOptions
+    { constructorTagModifier = map toUpper
+    }
 
 data Direction = In | Out deriving (Eq, Show, Enum, Ord)
 
@@ -126,11 +133,9 @@ emptyThread = emptyZohoStructure
 
 $(makeLensesWith abbreviatedFields ''ThreadPoly)
 
-instance (FromJSON stringInt, FromJSON textList) => FromJSON (ThreadPoly stringInt textList) where
-  parseJSON = genericParseJSON threadJsonOptions
 
-instance {-# OVERLAPS #-} FromJSON (ThreadPoly Int [Text]) where
-  parseJSON v = fmap doConversion (genericParseJSON threadJsonOptions v)
+instance FromJSON (ThreadPoly Int [Text]) where
+  parseJSON v = fmap doConversion (genericParseJSON (zohoPrefix Casing.camelCase) v)
     where
       doConversion :: ThreadPoly String Text -> ThreadPoly Int [Text]
       doConversion x@Thread{..} =
@@ -140,11 +145,8 @@ instance {-# OVERLAPS #-} FromJSON (ThreadPoly Int [Text]) where
           , threadReplyTo = fmap ((fmap T.strip) . (T.splitOn ",")) threadReplyTo
           }
 
-instance (ToJSON stringInt, ToJSON textList) => ToJSON (ThreadPoly stringInt textList) where
-  toJSON = genericToJSON threadJsonOptions
-
-instance {-# OVERLAPS #-} ToJSON (ThreadPoly Int [Text]) where
-  toJSON = (genericToJSON threadJsonOptions) . doConversion
+instance ToJSON (ThreadPoly Int [Text]) where
+  toJSON = (genericToJSON $ zohoPrefix Casing.camelCase) . doConversion
     where
       doConversion :: ThreadPoly Int [Text] -> ThreadPoly String Text
       doConversion x@Thread{..} =
@@ -192,6 +194,29 @@ list oid listOpts tid = do
     ZM.runRequestAndParseOptionalResponse (ResponseWrapper []) Prelude.id $
     listRequest oid listOpts tid
   pure $ fmap unwrapResponse x
+
+
+-- * Get single thread
+
+getRequest :: OrgId
+           -> TicketId
+           -> ThreadId
+           -> Request
+getRequest oid tid thid =
+  ZO.prepareGet (Common.mkApiEndpoint $ "/tickets/" <> toS tid <> "/threads/" <> toS thid) params [Common.orgIdHeader oid]
+  where
+    params = 
+      applyOptionalQueryParam "include" (Just "plainText" :: Maybe Text) []
+
+
+get :: forall m . (HasZoho m)
+    => OrgId
+    -> TicketId
+    -> ThreadId
+    -> m (Either Error Thread)
+get oid tid thid =
+  ZM.runRequestAndParseResponse $
+  getRequest oid tid thid
 
 
 createRequest :: OrgId

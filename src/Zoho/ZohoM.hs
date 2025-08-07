@@ -277,6 +277,7 @@ retryOnTemporaryNetworkErrors action = Retry.recovering
           OverlongHeaders -> False
           InvalidStatusLine _ -> False
           InvalidHeader _ -> False
+          InvalidRequestHeader _ -> False
           InternalException _ -> False
           TlsNotSupported -> False
           WrongRequestBodyStreamSize _ _ -> False

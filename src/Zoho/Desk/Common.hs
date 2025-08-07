@@ -23,6 +23,7 @@ import Data.List as DL
 import Prelude hiding (id)
 
 type TicketId = Text
+type ThreadId = Text
 type DepartmentId = Text
 type ContactId = Text
 type ProductId = Text
