@@ -91,4 +91,6 @@ library:
     - Zoho.Desk.Ticket
     - Zoho.Desk.Thread
     - Zoho.Desk.IM
+    - Zoho.Desk.Conversation
+    - Zoho.Desk.Article
     - Zoho.CRM.Common.Utils

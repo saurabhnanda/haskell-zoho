@@ -21,6 +21,8 @@ import Data.String.Conv (toS)
 import Control.Monad (join)
 import Text.Read (readMaybe)
 import Data.Char (toUpper)
+import UnliftIO (MonadIO, liftIO, catch, SomeException, handle)
+
 
 data Visibility = VisiblePublic
                 | VisiblePrivate
@@ -85,9 +87,13 @@ instance ToJSON ContentType where
 
 instance FromJSON ContentType where
   parseJSON = withText "Expecting Text to parse into ContentType" $ \t ->
-    pure $ case t of
-    "plainText" -> PlainText
+    pure $ case T.toLower t of
+    "plaintext" -> PlainText
+    "text/plain" -> PlainText
+    "plain" -> PlainText
     "html" -> Html
+    "text/html" -> Html
+    "application/xhtml+xml" -> Html
     x -> ContentTypeOther x
 
 

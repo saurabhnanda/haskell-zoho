@@ -16,13 +16,14 @@ import Data.Aeson.TH as Aeson
 import Control.Lens (makeLensesWith, abbreviatedFields)
 import Zoho.OAuth as ZO (prepareGet, applyOptionalQueryParam)
 import Network.HTTP.Client as HC (Request)
-import Zoho.Desk.Common as Common
+import Zoho.Desk.Common as Common (mkApiEndpoint, orgIdHeader, applyTimeRangeParam)
 import Zoho.ZohoM as ZM
 import Data.String.Conv (toS)
 import Control.Monad (join)
 import Text.Read (readMaybe)
 import Network.HTTP.Types as HT
 import Zoho.Types
+import Zoho.Desk.Common (CategoryId, ArticleId, AuthorId, TranslationId, DepartmentId)
 
 -- | User object (used for author, owner, etc.)
 data ArticleUser = ArticleUser
@@ -102,8 +103,8 @@ data ListOptions = ListOptions
   , optPermission :: !(Maybe Text)  -- "ALL", "REGISTEREDUSERS", "AGENTS"
   , optAuthorId :: !(Maybe Text)
   , optCategoryId :: !(Maybe CategoryId)
-  , optModifiedTimeRange :: !(Maybe Text)  -- ISO format: 'yyyy-MM-ddThh:mm:ss.SSSZ,yyyy-MM-ddThh:mm:ss.SSSZ'
-  , optExpiryTimeRange :: !(Maybe Text)  -- ISO format
+  , optModifiedTimeRange :: !(Maybe (UTCTime, UTCTime))  -- Use UTCTime tuples for proper formatting
+  , optExpiryTimeRange :: !(Maybe (UTCTime, UTCTime))  -- Use UTCTime tuples for proper formatting
   , optStatus :: !(Maybe Text)  -- "Draft", "Published", "Review", "Expired", "Unpublished"
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
@@ -196,7 +197,7 @@ buildArticleQuery opts =
   applyOptionalQueryParam "sortBy" (optSortBy opts) $
   applyOptionalQueryParam "permission" (optPermission opts) $
   applyOptionalQueryParam "authorId" (optAuthorId opts) $
-  applyOptionalQueryParam "modifiedTimeRange" (optModifiedTimeRange opts) $
-  applyOptionalQueryParam "expiryTimeRange" (optExpiryTimeRange opts) $
+  applyTimeRangeParam "modifiedTimeRange" (optModifiedTimeRange opts) $
+  applyTimeRangeParam "expiryTimeRange" (optExpiryTimeRange opts) $
   applyOptionalQueryParam "from" (show <$> optFrom opts) $
   applyOptionalQueryParam "limit" (show <$> optLimit opts) []

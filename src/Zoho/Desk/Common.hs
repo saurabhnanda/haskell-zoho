@@ -96,7 +96,6 @@ class HasModifiedTimeRange s a | s -> a where modifiedTimeRange :: Lens' s a
 applyCommonSearchParams :: ( HasFrom opts (Maybe Int)
                            , HasLimit opts (Maybe Int)
                            , HasId opts (Maybe Text)
-                           , HasAll opts (Maybe Bool)
                            , HasCreatedTimeRange opts (Maybe (UTCTime, UTCTime))
                            , HasModifiedTimeRange opts (Maybe (UTCTime, UTCTime))
                            )
@@ -118,9 +117,9 @@ applyTimeRangeParam :: BS.ByteString
                     -> HT.Query
 applyTimeRangeParam k Nothing p = p
 applyTimeRangeParam k (Just (t1, t2)) p =
-  (k, Just $ toS $ (iso8601 t1) <> ":" <> (iso8601 t2)):p
+  (k, Just $ toS $ (iso8601 t1) <> "," <> (iso8601 t2)):p
   where
-    iso8601 = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z"
+    iso8601 = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S.000Z"
 
 
 applyCustomFieldSearchParams :: (HasCustomFields opts [(ApiName, Text)])

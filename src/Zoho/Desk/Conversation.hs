@@ -21,6 +21,7 @@ import Zoho.ZohoM as ZM
 import Data.String.Conv (toS)
 import Control.Monad (join)
 import Text.Read (readMaybe)
+import qualified Zoho.Desk.Thread as Thread
 
 -- | Type of conversation entry
 data ConversationType = ConvThread | ConvComment
@@ -61,10 +62,10 @@ data ConversationEntryPoly attachCnt = ConversationEntryPoly
   , convCanReply :: !(Maybe Bool)
   -- Thread-specific fields (present when type = "thread")
   , convIsDescriptionThread :: !(Maybe Bool)
-  , convVisibility :: !(Maybe Text)  -- "public" | "private"
+  , convVisibility :: !(Maybe Thread.Visibility)
   , convChannel :: !(Maybe Text)     -- "EMAIL" | "FORUMS" | "CHAT" etc.
-  , convDirection :: !(Maybe Text)   -- "in" | "out"
-  , convStatus :: !(Maybe Text)      -- "SUCCESS" | "FAILED" | "DRAFT"
+  , convDirection :: !(Maybe Thread.Direction)
+  , convStatus :: !(Maybe Thread.Status)
   , convFromEmailAddress :: !(Maybe Text)
   , convTo :: !(Maybe Text)
   , convCc :: !(Maybe Text)
@@ -78,6 +79,7 @@ data ConversationEntryPoly attachCnt = ConversationEntryPoly
   , convRespondedIn :: !(Maybe Text) -- Duration like "00:05:14"
   -- Comment-specific fields (present when type = "comment")
   , convCommenterId :: !(Maybe Text)
+  , convCommenter :: !(Maybe ConversationAuthor)
   , convCommentedTime :: !(Maybe UTCTime)
   , convModifiedTime :: !(Maybe UTCTime)
   , convIsPublic :: !(Maybe Bool)

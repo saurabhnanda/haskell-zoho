@@ -204,7 +204,7 @@ data SearchOptions = SearchOptions
   , soptsAccountName :: !(Maybe Text)
   , soptsProductName :: !(Maybe Text)
   , soptsTag :: !(Maybe Text)
-  , soptsAll :: !(Maybe Bool)
+  , soptsAll :: !(Maybe Text)
   , soptsCustomFields :: ![(ApiName, Text)]
   , soptsCustomerResponseTimeRange :: !(Maybe (UTCTime, UTCTime))
   , soptsDueDateRange :: !(Maybe (UTCTime, UTCTime))
@@ -244,6 +244,7 @@ searchRequest oid opts@SearchOptions{..} =
       applyTimeRangeParam "dueDateRange" soptsDueDateRange $
       applyTimeRangeParam "customerResponseTimeRange" soptsCustomerResponseTimeRange $
       applyOptionalQueryParam "tag" soptsTag $
+      applyOptionalQueryParam "_all" soptsAll $
       applyOptionalQueryParam "productName" soptsProductName $
       applyOptionalQueryParam "accountName" soptsAccountName $
       applyOptionalQueryParam "contactName" soptsContactName $
