@@ -27,7 +27,7 @@ import UnliftIO (MonadIO, liftIO, catch, SomeException, handle)
 data Visibility = VisiblePublic
                 | VisiblePrivate
                 | VisibleOther !Text
-                deriving (Eq, Show)
+                deriving (Eq, Show, Generic)
 
 instance ToJSON Visibility where
   toJSON v = toJSON $ case v of
@@ -58,7 +58,7 @@ instance FromJSON Status where
     { constructorTagModifier = map toUpper
     }
 
-data Direction = In | Out deriving (Eq, Show, Enum, Ord)
+data Direction = In | Out deriving (Eq, Show, Enum, Ord, Generic)
 
 instance ToJSON Direction where
   toJSON x = case x of

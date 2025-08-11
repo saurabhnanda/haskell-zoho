@@ -42,7 +42,7 @@ data ConversationAuthor = ConversationAuthor
   , authorTyp :: !(Maybe Text)  -- "END_USER" | "AGENT"
   , authorPhotoURL :: !(Maybe Text)
   , authorRoleName :: !(Maybe Text)  -- Only for agents
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 instance FromJSON ConversationAuthor where
   parseJSON = genericParseJSON $ zohoPrefixTyp Casing.camelCase
@@ -52,9 +52,9 @@ instance ToJSON ConversationAuthor where
 
 
 -- | Unified conversation entry (all fields at top level as per API)
-data ConversationEntryPoly attachCnt = ConversationEntryPoly
+data ConversationEntryPoly attachCnt convType = ConversationEntryPoly
   { convId :: !(Maybe Text)
-  , convTyp :: !ConversationType
+  , convTyp :: !convType
   , convSummary :: !(Maybe Text)      -- Main content
   , convContent :: !(Maybe Text)      -- HTML content (comments use this)
   , convAuthor :: !(Maybe ConversationAuthor)
@@ -85,15 +85,22 @@ data ConversationEntryPoly attachCnt = ConversationEntryPoly
   , convIsPublic :: !(Maybe Bool)
   } deriving (Eq, Show, Generic)
 
-type ConversationEntry = ConversationEntryPoly Int
+type ConversationEntry = ConversationEntryPoly Int ConversationType
 
-instance FromJSON (ConversationEntryPoly Int) where
+instance EmptyZohoStructure (ConversationEntryPoly attachCnt (Maybe ConversationType))
+
+instance EmptyZohoStructure (ConversationType -> ConversationEntryPoly attachCnt ConversationType) where
+  emptyZohoStructure ctype = 
+    let x = emptyZohoStructure :: ConversationEntryPoly attachCnt (Maybe ConversationType)
+    in x { convTyp = ctype }
+
+instance FromJSON ConversationEntry where
   parseJSON v = fmap doConversion (genericParseJSON (zohoPrefixTyp Casing.camelCase) v)
     where
-      doConversion :: ConversationEntryPoly String -> ConversationEntryPoly Int
+      doConversion :: ConversationEntryPoly String ConversationType-> ConversationEntryPoly Int ConversationType
       doConversion x = x { convAttachmentCount = join $ fmap readMaybe (convAttachmentCount x) }
 
-instance ToJSON (ConversationEntryPoly Int) where
+instance ToJSON ConversationEntry where
   toJSON = genericToJSON $ zohoPrefixTyp Casing.camelCase
 
 $(makeLensesWith abbreviatedFields ''ConversationAuthor)

@@ -28,6 +28,7 @@ import qualified Network.OAuth.OAuth2.TokenRequest as TokenRequest (Errors)
 import Control.Lens hiding ((.=), to)
 import Prelude hiding (id)
 import Control.Applicative ((<|>))
+import Data.Time (UTCTime(..))
 
 data NoCustomFields = NoCustomFields deriving (Eq, Show)
 
