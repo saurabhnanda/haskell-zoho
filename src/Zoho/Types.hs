@@ -23,12 +23,12 @@ import Control.Lens ((^.))
 import Control.Exception (throwIO, Exception)
 import Data.Functor (void)
 import Data.ByteString.Lazy as BSL
-import Network.OAuth.OAuth2 (OAuth2Error)
-import qualified Network.OAuth.OAuth2.TokenRequest as TokenRequest (Errors)
+import Network.OAuth.OAuth2.TokenRequest (TokenResponseError)
 import Control.Lens hiding ((.=), to)
 import Prelude hiding (id)
 import Control.Applicative ((<|>))
 import Data.Time (UTCTime(..))
+import qualified Data.Aeson.Key as Key
 
 data NoCustomFields = NoCustomFields deriving (Eq, Show)
 
@@ -53,13 +53,13 @@ data ResponseWrapper (s :: Symbol) a = ResponseWrapper { unwrapResponse :: a } d
 
 instance (FromJSON a, KnownSymbol s) => FromJSON (ResponseWrapper s a) where
   parseJSON = withObject "Expecting Object to parse into a ResponseWrapper"$ \o -> do
-    r <- o .: (toS $ symbolVal (Proxy :: Proxy s))
+    r <- o .: (Key.fromString $ symbolVal (Proxy :: Proxy s))
     pure $ ResponseWrapper r
 
 instance (ToJSON a, KnownSymbol s) => ToJSON (ResponseWrapper s a) where
   toJSON (ResponseWrapper v) =
     let k = symbolVal (Proxy :: Proxy s)
-    in object [ (toS k) Aeson..= (toJSON v) ]
+    in object [ (Key.fromString k) Aeson..= (toJSON v) ]
 
 data PaginatedResponse (s :: Symbol) a = PaginatedResponse
   { pageActualData :: a
@@ -81,7 +81,7 @@ emptyPaginatedResponse = PaginatedResponse
 
 instance (FromJSON a, KnownSymbol s) => FromJSON (PaginatedResponse s a) where
   parseJSON = withObject "Expecting Object to parse into a PaginatedResponse" $ \o -> do
-    pageActualData <- o .: (toS $ symbolVal (Proxy :: Proxy s))
+    pageActualData <- o .: (Key.fromString $ symbolVal (Proxy :: Proxy s))
     info_ <- (o .: "info") <|> (o .: "page_context")
     pageRecordsPerPage <- info_ .:? "per_page"
     pageCount <- info_ .:? "count"
@@ -115,14 +115,14 @@ instance {-# OVERLAPS #-} (KnownSymbol s) => ToJSON (Maybe (Reference s)) where
 instance (KnownSymbol s) => FromJSON (Reference s) where
   parseJSON = withObject "Expecting Object to parse into a Reference" $ \o -> do
     refId <- o .: "id"
-    refName <- o .: (toS $ symbolVal (Proxy :: Proxy s))
+    refName <- o .: (Key.fromString $ symbolVal (Proxy :: Proxy s))
     pure Reference{..}
 
 
 instance (KnownSymbol s) => ToJSON (Reference s) where
   toJSON Reference{..} = object
     [ "id" .= refId
-    , (toS $ symbolVal (Proxy :: Proxy s)) .= refName
+    , (Key.fromString $ symbolVal (Proxy :: Proxy s)) .= refName
     ]
 
 $(makeLensesWith abbreviatedFields ''Reference)
@@ -132,7 +132,7 @@ $(makeLensesWith abbreviatedFields ''Reference)
 
 data Error = HTTPError !HttpException
            | ParseError !String !BSL.ByteString
-           | TokenError (OAuth2Error TokenRequest.Errors)
+           | TokenError TokenResponseError
            | OtherError !Aeson.Value
            deriving (Show)
 

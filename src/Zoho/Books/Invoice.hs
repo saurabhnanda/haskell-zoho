@@ -16,7 +16,7 @@ import Zoho.ZohoM as ZM
 import qualified Zoho.Books.Common as Common
 import Network.HTTP.Client as HC (Request, path, method)
 import Data.String.Conv
-import qualified Data.HashMap.Lazy as HML
+import qualified Data.Aeson.KeyMap as KeyMap
 import Zoho.Books.Account (AccountId(..))
 import Zoho.Books.Contact (VendorId (..), CustomerId (..))
 import Zoho.Books.Item (ItemId (..))
@@ -107,7 +107,7 @@ instance (ToJSON cf) => ToJSON (Invoice cf) where
         cf = toJSON (invOtherFields acc)
         y = unsafeMergeObjects x cf
     in case y of
-      Aeson.Object o -> Aeson.Object $ HML.delete "other_fields" o
+      Aeson.Object o -> Aeson.Object $ KeyMap.delete "other_fields" o
       _ -> y
 
 instance (FromJSON cf) => FromJSON (Invoice cf) where

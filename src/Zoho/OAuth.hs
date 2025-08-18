@@ -30,6 +30,7 @@ import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text.Encoding as T
 import qualified Data.ByteString.Char8 as C8
+import qualified Data.Aeson.Key as Key
 
 mkEndpoint :: Host -> BS.ByteString -> URI
 mkEndpoint h p = URI
@@ -100,11 +101,11 @@ hostCN = Host "accounts.zoho.com.cn"
 
 mkOAuth :: Host -> ClientId -> ClientSecret -> URI -> O.OAuth2
 mkOAuth h cid sec cback = O.OAuth2
-  { oauthClientId = coerce cid
-  , oauthClientSecret = Just $ coerce sec
-  , oauthOAuthorizeEndpoint = mkAuthEndpoint h
-  , oauthAccessTokenEndpoint = mkTokenEndpoint h
-  , oauthCallback = Just cback
+  { oauth2ClientId = coerce cid
+  , oauth2ClientSecret = coerce sec
+  , oauth2AuthorizeEndpoint = mkAuthEndpoint h
+  , oauth2TokenEndpoint = mkTokenEndpoint h
+  , oauth2RedirectUri = cback
   }
 
 newtype Scope = Scope BS.ByteString
@@ -279,76 +280,109 @@ testToken :: RefreshToken
 testToken = RefreshToken "1000.d172fccaf6d7e1e08ec40af3cbf05af6.fa961eedf1fa4b2cfbe822439b376bb0"
 
 
-handleOAuth2TokenResponse :: FromJSON err
-                          => Response BSL.ByteString
-                          -> OAuth2Result err BSL.ByteString
-handleOAuth2TokenResponse rsp =
-  if HT.statusIsSuccessful (HC.responseStatus rsp)
-  then Right $ HC.responseBody rsp
-  else Left $ parseOAuth2Error (HC.responseBody rsp)
+-- handleOAuth2TokenResponse :: FromJSON err
+--                           => Response BSL.ByteString
+--                           -> OAuth2Result err BSL.ByteString
+-- handleOAuth2TokenResponse rsp =
+--   if HT.statusIsSuccessful (HC.responseStatus rsp)
+--   then Right $ HC.responseBody rsp
+--   else Left $ parseOAuth2Error (HC.responseBody rsp)
 
-refreshAccessToken :: Manager
-                   -> OAuth2
-                   -> RefreshToken
-                   -> IO (OAuth2Result TokenRequest.Errors OAuth2Token)
-refreshAccessToken mgr OAuth2{oauthClientId, oauthClientSecret, oauthAccessTokenEndpoint} (RefreshToken rtkn) =
-  fmap (parseResponseFlexible . handleOAuth2TokenResponse) $
-  W.postWith
-    (W.defaults & W.manager .~ (Right mgr))
-    (toS $ serializeURIRef' $ oauthAccessTokenEndpoint)
-    [ "refresh_token" W.:= rtkn
-    , "client_id" W.:= oauthClientId
-    , "client_secret" W.:= oauthClientSecret
-    , "grant_type" W.:= ("refresh_token" :: Text)
-    ]
+refreshAccessTokenRequest :: Manager
+                          -> OAuth2
+                          -> RefreshToken
+                          -> Request
+refreshAccessTokenRequest mgr OAuth2{oauth2ClientId, oauth2ClientSecret, oauth2TokenEndpoint} (RefreshToken rtkn) =
+  prepareFormPost oauth2TokenEndpoint [] []
+     [ ("refresh_token" :: Text, rtkn)
+     , ("client_id", oauth2ClientId)
+     , ("client_secret", oauth2ClientSecret)
+     , ("grant_type", "refresh_token")
+     ]
 
--- | Try 'parseResponseJSON', if failed then parses the @OAuth2Result BSL.ByteString@ that contains not JSON but a Query String.
-parseResponseFlexible :: (FromJSON err, FromJSON a)
-                      => OAuth2Result err BSL.ByteString
-                      -> OAuth2Result err a
-parseResponseFlexible r = case parseResponseJSON r of
-                            Left _ -> parseResponseString r
-                            x      -> x
+handleRefreshAccessTokenResponse :: Response BSL.ByteString -> Either TokenResponseError OAuth2Token
+handleRefreshAccessTokenResponse resp = 
+  -- TODO: should we check the response status code?
+  case eitherDecode b of
+    Right r -> Right r -- we were able to parse an OAuth2Token
+    Left _ -> case eitherDecode b of
+      Right e -> Left e -- we were able to successfully parse a TokenResponsError in JSON body
+      Left _  -> case fromJSON (queryToValue $ parseQuery $ toS b) of
+        Success e -> Left e -- we were able to successfully parse a TokenResponsError in the body but as a query param
+        Error _ -> Left $ TokenResponseError
+          { tokenResponseError = UnknownErrorCode "UNKNOWN"
+          , tokenResponseErrorDescription = Just $ "Unable to parse: " <> toS b
+          , tokenResponseErrorUri = Nothing
+          }
+  where
+    b = HC.responseBody resp
 
-parseResponseJSON :: (FromJSON err, FromJSON a)
-                  => OAuth2Result err BSL.ByteString
-                  -> OAuth2Result err a
-parseResponseJSON (Left b) = Left b
-parseResponseJSON (Right b) = case eitherDecode b of
-                                Left e  -> Left $ mkDecodeOAuth2Error b e
-                                Right x -> Right x
+    queryToValue :: [(BS.ByteString, Maybe BS.ByteString)] -> Aeson.Value
+    queryToValue qry = Aeson.object $ DL.map (\(k, v) -> (Key.fromString $ toS k) Aeson..= (fmap T.decodeUtf8 v)) qry
+
+-- refreshAccessToken :: Manager
+--                    -> OAuth2
+--                    -> RefreshToken
+--                    -> IO (Either TokenResponseError OAuth2Token)
+-- refreshAccessToken mgr OAuth2{oauthClientId, oauthClientSecret, oauthAccessTokenEndpoint} (RefreshToken rtkn) =
+--   fmap (parseResponseFlexible . handleOAuth2TokenResponse) $
+--   W.postWith
+--     (W.defaults & W.manager .~ (Right mgr))
+--     (toS $ serializeURIRef' $ oauthAccessTokenEndpoint)
+--     [ "refresh_token" W.:= rtkn
+--     , "client_id" W.:= oauthClientId
+--     , "client_secret" W.:= oauthClientSecret
+--     , "grant_type" W.:= ("refresh_token" :: Text)
+--     ]
+
+-- | Try 'parseResponseJSON', if failed then parses the @OAuth2Result BSL.ByteString@ 
+-- that contains not JSON but a Query String.
+-- parseResponseFlexible :: (FromJSON err, FromJSON a)
+--                       => OAuth2Result err BSL.ByteString
+--                       -> OAuth2Result err a
+-- parseResponseFlexible r = case parseResponseJSON r of
+--                             Left _ -> parseResponseString r
+--                             x      -> x
+
+-- parseResponseJSON :: (FromJSON err, FromJSON a)
+--                   => OAuth2Result err BSL.ByteString
+--                   -> OAuth2Result err a
+-- parseResponseJSON (Left b) = Left b
+-- parseResponseJSON (Right b) = case eitherDecode b of
+--                                 Left e  -> Left $ mkDecodeOAuth2Error b e
+--                                 Right x -> Right x
 
 -- | Parses a @OAuth2Result BSL.ByteString@ that contains not JSON but a Query String
-parseResponseString :: (FromJSON err, FromJSON a)
-                    => OAuth2Result err BSL.ByteString
-                    -> OAuth2Result err a
-parseResponseString (Left b) = Left b
-parseResponseString (Right b) = case parseQuery $ BSL.toStrict b of
-                                  [] -> Left errorMessage
-                                  a -> case fromJSON $ queryToValue a of
-                                        Error _   -> Left errorMessage
-                                        Success x -> Right x
-  where
-    queryToValue = Object . HM.fromList . DL.map paramToPair
-    paramToPair (k, mv) = (T.decodeUtf8 k, maybe Null (String . T.decodeUtf8) mv)
-    errorMessage = parseOAuth2Error b
+-- parseResponseString :: (FromJSON err, FromJSON a)
+--                     => OAuth2Result err BSL.ByteString
+--                     -> OAuth2Result err a
+-- parseResponseString (Left b) = Left b
+-- parseResponseString (Right b) = case parseQuery $ BSL.toStrict b of
+--                                   [] -> Left errorMessage
+--                                   a -> case fromJSON $ queryToValue a of
+--                                         Error _   -> Left errorMessage
+--                                         Success x -> Right x
+--   where
+--     queryToValue = Object . HM.fromList . DL.map paramToPair
+--     paramToPair (k, mv) = (T.decodeUtf8 k, maybe Null (String . T.decodeUtf8) mv)
+--     errorMessage = parseOAuth2Error b
 
 -- TODO: Retry on network errors
-withAccessToken :: Manager
-                -> OAuth2
-                -> RefreshToken
-                -> Maybe AccessToken
-                -> (Manager -> AccessToken -> IO a)
-                -> IO (Either String (a, (AccessToken, Maybe RefreshToken)))
-withAccessToken mgr oa rtkn mAtkn fn = case mAtkn of
-  Just x -> do
-    r <- fn mgr x
-    pure $ Right (r, (x, Nothing))
-  Nothing -> (refreshAccessToken mgr oa rtkn) >>= \case
-    Left e -> pure $ Left $ show e
-    Right OAuth2Token{accessToken, refreshToken} -> do
-      r <- fn mgr accessToken
-      pure $ Right (r, (accessToken, refreshToken))
+-- withAccessToken :: Manager
+--                 -> OAuth2
+--                 -> RefreshToken
+--                 -> Maybe AccessToken
+--                 -> (Manager -> AccessToken -> IO a)
+--                 -> IO (Either String (a, (AccessToken, Maybe RefreshToken)))
+-- withAccessToken mgr oa rtkn mAtkn fn = case mAtkn of
+--   Just x -> do
+--     r <- fn mgr x
+--     pure $ Right (r, (x, Nothing))
+--   Nothing -> (refreshAccessToken mgr oa rtkn) >>= \case
+--     Left e -> pure $ Left $ show e
+--     Right OAuth2Token{accessToken, refreshToken} -> do
+--       r <- fn mgr accessToken
+--       pure $ Right (r, (accessToken, refreshToken))
 
 logRequest :: Request -> IO Request
 logRequest r = do

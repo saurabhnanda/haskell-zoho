@@ -62,7 +62,7 @@ main = do
             , reqMessage = "ACTION REQUIRED\nThis is a reminder for an open invoice against your Vacation Labs account. We request you to please check your email for invoice and payment details. \nFailure to pay the invoice by the due-date will result in suspension of your Vacation Labs account (i.e. your website / booking-engine will stop working)."
             , reqHeaderMessage = Nothing
             }
-  mgr <- getLoggingManager (\req -> BSL.putStrLn (httpRequestToCurl req) >> pure req) pure
+  mgr <- getLoggingManager (\req -> CL8.putStrLn (httpRequestToCurl req) >> pure req) pure
   let oa = ZO.mkOAuth ZO.hostUS (ZO.ClientId "1000.DQV1LY2MRP8OMPXMK9DLYZVPGAF1VH") (ZO.ClientSecret "92bd87d164bf6f671cc6400d20da1a0bb6a1570dde") [uri|http://master.hetzner.vacationlabs.com/lambda/oauth-redirect|]
       rtkn = RefreshToken "1000.2c258f8e575af7ebda4fe88363569ad8.249a505687b32d97443b7cee4a7d0761"
   ZM.runZohoT mgr oa rtkn Nothing $ do

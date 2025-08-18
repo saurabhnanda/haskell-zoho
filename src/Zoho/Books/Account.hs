@@ -17,7 +17,7 @@ import Zoho.ZohoM as ZM
 import qualified Zoho.Books.Common as Common
 import Zoho.Books.Common (CustomField(..))
 import Network.HTTP.Client as HC (Request)
-import qualified Data.HashMap.Lazy as HML
+import qualified Data.Aeson.KeyMap as KeyMap
 -- import Data.String.Conv
 
 newtype AccountId = AccountId { rawAccountId :: Text } 
@@ -60,7 +60,7 @@ instance (ToJSON cf) => ToJSON (Account cf) where
         cf = toJSON (accOtherFields acc)
         y = unsafeMergeObjects x cf
     in case y of
-      Aeson.Object o -> Aeson.Object $ HML.delete "other_fields" o
+      Aeson.Object o -> Aeson.Object $ KeyMap.delete "other_fields" o
       _ -> y
 
 instance (FromJSON cf) => FromJSON (Account cf) where

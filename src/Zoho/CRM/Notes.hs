@@ -30,6 +30,10 @@ data NoteSpecialFields = NoteSpecialFields
 emptyNoteSpecialFields :: NoteSpecialFields
 emptyNoteSpecialFields = emptyZohoStructure
 
+$(deriveJSON (zohoPrefix (('$':) . Casing.snakeCase)) ''NoteSpecialFields)
+$(makeLensesWith abbreviatedFields ''NoteSpecialFields)
+
+
 data Note = Note
   { noteMetaData :: !(Maybe MetaData)
   , noteNoteTile :: !(Maybe Text)
@@ -165,6 +169,4 @@ userTag :: UserId
 userTag uid zuid = "crm[user#" <> uid <> "#" <> zuid <> "]crm"
 
 
-$(deriveJSON (zohoPrefix (('$':) . Casing.snakeCase)) ''NoteSpecialFields)
 $(makeLensesWith abbreviatedFields ''Note)
-$(makeLensesWith abbreviatedFields ''NoteSpecialFields)

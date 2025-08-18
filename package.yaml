@@ -34,7 +34,6 @@ dependencies:
   - retry
   - exceptions
   - text-conversions
-  - connection
   - unliftio
   - unliftio-core
   - token-bucket

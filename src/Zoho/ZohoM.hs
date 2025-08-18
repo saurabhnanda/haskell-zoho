@@ -4,7 +4,7 @@ module Zoho.ZohoM where
 import Control.Monad.IO.Class
 import Control.Monad
 import Network.OAuth.OAuth2 as O hiding (refreshAccessToken)
-import Network.OAuth.OAuth2.TokenRequest as TokenRequest
+import Network.OAuth.OAuth2.TokenRequest as TokenRequest hiding (refreshAccessToken)
 import Data.ByteString.Lazy as BSL
 import Network.Wreq as W hiding (manager)
 import qualified Network.Wreq as W
@@ -42,7 +42,7 @@ import Control.Applicative ((<|>))
 import Debug.Trace
 
 class (MonadIO m, E.MonadMask m) => HasZoho m where
-  refreshAccessToken :: AccessToken -> m (OAuth2Result TokenRequest.Errors (RefreshToken, AccessToken))
+  refreshAccessToken :: AccessToken -> m (Either TokenResponseError (RefreshToken, AccessToken))
   getManager :: m Manager
   getRefreshToken :: m RefreshToken
   getAccessToken :: m AccessToken
@@ -119,28 +119,22 @@ instance (MonadIO m, E.MonadMask m, MonadUnliftIO m) => HasZoho (ZohoT m) where
             in pure (x, Right x)
 
 
-handleOAuth2TokenResponse :: FromJSON err
-                          => Response BSL.ByteString
-                          -> OAuth2Result err BSL.ByteString
-handleOAuth2TokenResponse rsp =
-  if HT.statusIsSuccessful (HC.responseStatus rsp)
-  then Right $ HC.responseBody rsp
-  else Left $ parseOAuth2Error (HC.responseBody rsp)
+-- handleOAuth2TokenResponse :: FromJSON err
+--                           => Response BSL.ByteString
+--                           -> OAuth2Result err BSL.ByteString
+-- handleOAuth2TokenResponse rsp =
+--   if HT.statusIsSuccessful (HC.responseStatus rsp)
+--   then Right $ HC.responseBody rsp
+--   else Left $ parseOAuth2Error (HC.responseBody rsp)
 
 defaultRefreshAccessToken :: (HasZoho m)
                           => RefreshToken
-                          -> m (OAuth2Result TokenRequest.Errors OAuth2Token)
-defaultRefreshAccessToken (RefreshToken rtkn) = do
+                          -> m (Either TokenResponseError OAuth2Token)
+defaultRefreshAccessToken rtkn = do
   mgr <- getManager
-  OAuth2{oauthClientId, oauthClientSecret, oauthAccessTokenEndpoint } <- getOAuth2Credentials
-  r <- defaultRunRequest False $
-       ZO.prepareFormPost oauthAccessTokenEndpoint [] []
-       [ ("refresh_token" :: Text, rtkn)
-       , ("client_id", oauthClientId)
-       , ("client_secret", fromMaybe (Prelude.error "client_secret is required") oauthClientSecret)
-       , ("grant_type", "refresh_token")
-       ]
-  pure $ ZO.parseResponseFlexible $ handleOAuth2TokenResponse r
+  creds <- getOAuth2Credentials
+  let req = ZO.refreshAccessTokenRequest mgr creds rtkn
+  ZO.handleRefreshAccessTokenResponse <$> defaultRunRequest False req
 
 -- addAuthHeader :: (HasZoho m)
 --               => Options
