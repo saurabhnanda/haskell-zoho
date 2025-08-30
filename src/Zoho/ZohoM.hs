@@ -269,6 +269,7 @@ retryOnTemporaryNetworkErrors action = Retry.recovering
           -- or a permanent issue with the networking environment
           TooManyRedirects _ -> False
           OverlongHeaders -> False
+          TooManyHeaderFields -> False
           InvalidStatusLine _ -> False
           InvalidHeader _ -> False
           InvalidRequestHeader _ -> False

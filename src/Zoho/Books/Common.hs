@@ -54,13 +54,7 @@ type OperationResult = ZohoResult OmitField OmitField
 
 data ListOp = OpStartsWith !Text | OpContains !Text deriving  (Eq, Show, Generic)
 
-data UnsafeEither a b = UnsafeLeft !a | UnsafeRight !b deriving (Eq, Show, Generic)
-
-instance (ToJSON a, ToJSON b) => ToJSON (UnsafeEither a b) where
-  toJSON = genericToJSON (zohoPrefix Casing.snakeCase){sumEncoding=UntaggedValue} 
-
-instance (FromJSON a, FromJSON b) => FromJSON (UnsafeEither a b) where
-  parseJSON = genericParseJSON (zohoPrefix Casing.snakeCase){sumEncoding=UntaggedValue} 
+ 
 
 applyOptionalListOp :: BS.ByteString -> Maybe ListOp -> HT.Query -> HT.Query
 applyOptionalListOp k mListOp qp = 

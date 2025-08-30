@@ -46,6 +46,15 @@ instance ToJSON OmitField where
 instance FromJSON OmitField where
   parseJSON _ = pure OmitField
 
+-- | Type for handling fields that can be either String or Number in Zoho APIs
+data UnsafeEither a b = UnsafeLeft !a | UnsafeRight !b deriving (Eq, Show, Generic)
+
+instance (ToJSON a, ToJSON b) => ToJSON (UnsafeEither a b) where
+  toJSON (UnsafeLeft a) = toJSON a
+  toJSON (UnsafeRight b) = toJSON b
+
+instance (FromJSON a, FromJSON b) => FromJSON (UnsafeEither a b) where
+  parseJSON v = (UnsafeLeft <$> parseJSON v) <|> (UnsafeRight <$> parseJSON v)
 
 type ApiName = Text
 

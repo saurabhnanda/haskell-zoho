@@ -21,9 +21,33 @@ import Data.Time
 import Network.HTTP.Types as HT(Query)
 import Data.List as DL
 import Prelude hiding (id)
+import qualified Data.Text as T
+
+data ContentType = PlainText
+                 | Html
+                 | ContentTypeOther !Text
+                 deriving (Eq, Show, Ord)
+
+instance ToJSON ContentType where
+  toJSON x = toJSON $ case x of
+    PlainText -> "plainText"
+    Html -> "html"
+    ContentTypeOther s -> s
+
+instance FromJSON ContentType where
+  parseJSON = withText "Expecting Text to parse into ContentType" $ \t ->
+    pure $ case T.toLower t of
+    "plaintext" -> PlainText
+    "text/plain" -> PlainText
+    "plain" -> PlainText
+    "html" -> Html
+    "text/html" -> Html
+    "application/xhtml+xml" -> Html
+    x -> ContentTypeOther x
 
 type TicketId = Text
 type ThreadId = Text
+type ConversationId = Text
 type DepartmentId = Text
 type ContactId = Text
 type ProductId = Text
@@ -35,6 +59,11 @@ type ArticleId = Text
 type CategoryId = Text
 type AuthorId = Text
 type TranslationId = Text
+type AgentId = Text
+type AgentZuid = Text
+type RoleId = Text
+type ProfileId = Text
+type TagId = Text
 
 
 -- data ErrorCode = ZInvalidToken

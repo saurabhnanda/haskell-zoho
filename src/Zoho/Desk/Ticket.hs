@@ -61,6 +61,7 @@ data TicketPoly stringInt ticketCf contactCf = Ticket
   , ticketClosedTime :: !(Maybe UTCTime)
   , ticketDueDate :: !(Maybe UTCTime)
   , ticketCustomerResponseTime :: !(Maybe UTCTime)
+  , ticketTags :: !(Maybe [Text])
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 type Ticket = TicketPoly Int
@@ -173,6 +174,23 @@ create oid a =
   ZM.runRequestAndParseResponse $
   createRequest oid a
 
+-- * Get a single ticket
+
+getRequest :: OrgId
+           -> TicketId
+           -> Request
+getRequest oid tid =
+  ZO.prepareGet (Common.mkApiEndpoint $ "/tickets/" <> toS tid) [] [Common.orgIdHeader oid]
+
+get :: (HasZoho m, FromJSON ticketCf, FromJSON contactCf)
+    => OrgId
+    -> TicketId
+    -> m (Either Error (Ticket ticketCf contactCf))
+get oid tid =
+  ZM.runRequestAndParseResponse $
+  getRequest oid tid
+
+-- * Search tickets
 
 -- relevance,modifiedTime,createdTime,customerResponseTime
 data SortBy = SortRelevance

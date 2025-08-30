@@ -74,7 +74,7 @@ data ConversationEntryPoly attachCnt convType = ConversationEntryPoly
   , convIsForward :: !(Maybe Bool)
   , convHasAttach :: !(Maybe Bool)
   , convAttachmentCount :: !(Maybe attachCnt)
-  , convContentType :: !(Maybe Text) -- "text/html"
+  , convContentType :: !(Maybe ContentType)
   , convResponderId :: !(Maybe Text)
   , convRespondedIn :: !(Maybe Text) -- Duration like "00:05:14"
   -- Comment-specific fields (present when type = "comment")
@@ -85,6 +85,10 @@ data ConversationEntryPoly attachCnt convType = ConversationEntryPoly
   , convIsPublic :: !(Maybe Bool)
   } deriving (Eq, Show, Generic)
 
+-- | Type for parsing from API (handles both String and Int for attachmentCount)
+type ConversationEntryRaw = ConversationEntryPoly (UnsafeEither String Int) ConversationType
+
+-- | Type for application use (attachmentCount as Int)  
 type ConversationEntry = ConversationEntryPoly Int ConversationType
 
 instance EmptyZohoStructure (ConversationEntryPoly attachCnt (Maybe ConversationType))
@@ -94,11 +98,19 @@ instance EmptyZohoStructure (ConversationType -> ConversationEntryPoly attachCnt
     let x = emptyZohoStructure :: ConversationEntryPoly attachCnt (Maybe ConversationType)
     in x { convTyp = ctype }
 
+instance FromJSON ConversationEntryRaw where
+  parseJSON = genericParseJSON (zohoPrefixTyp Casing.camelCase)
+
 instance FromJSON ConversationEntry where
-  parseJSON v = fmap doConversion (genericParseJSON (zohoPrefixTyp Casing.camelCase) v)
+  parseJSON v = fmap convertToConversationEntry (parseJSON v)
     where
-      doConversion :: ConversationEntryPoly String ConversationType-> ConversationEntryPoly Int ConversationType
-      doConversion x = x { convAttachmentCount = join $ fmap readMaybe (convAttachmentCount x) }
+      convertToConversationEntry :: ConversationEntryRaw -> ConversationEntry
+      convertToConversationEntry x = x { convAttachmentCount = convertAttachmentCount (convAttachmentCount x) }
+      
+      convertAttachmentCount :: Maybe (UnsafeEither String Int) -> Maybe Int
+      convertAttachmentCount Nothing = Nothing
+      convertAttachmentCount (Just (UnsafeLeft s)) = readMaybe s
+      convertAttachmentCount (Just (UnsafeRight i)) = Just i
 
 instance ToJSON ConversationEntry where
   toJSON = genericToJSON $ zohoPrefixTyp Casing.camelCase
