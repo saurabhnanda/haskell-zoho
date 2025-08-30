@@ -51,6 +51,7 @@ library
       Zoho.Desk.Thread
       Zoho.Desk.IM
       Zoho.Desk.Conversation
+      Zoho.Desk.Agent
       Zoho.Desk.Article
       Zoho.CRM.Common.Utils
   other-modules:

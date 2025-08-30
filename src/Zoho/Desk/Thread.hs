@@ -104,7 +104,7 @@ instance FromJSON ContentType where
 --   "Manager, Support" <managersupport@vacationlabs.com>
 --
 
-data ThreadPoly stringInt textList = Thread
+data ThreadPoly stringInt = Thread
   { threadId :: !(Maybe Text)
   , threadIsDescriptionThread :: !(Maybe Bool)
   , threadVisibility :: !(Maybe Visibility)
@@ -120,19 +120,19 @@ data ThreadPoly stringInt textList = Thread
   , threadSummary :: !(Maybe Text)
   , threadAttachments :: !(Maybe OmitField) -- TODO
   , threadTo :: !(Maybe Text)
-  , threadCc :: !(Maybe textList)
-  , threadBcc :: !(Maybe textList)
+  , threadCc :: !(Maybe Text)
+  , threadBcc :: !(Maybe Text)
   , threadIsContentTruncated :: !(Maybe Bool)
   , threadFullContentURL :: !(Maybe Text)
   , threadContentType :: !(Maybe ContentType)
   , threadContent :: !(Maybe Text)
   , threadIsForward :: !(Maybe Bool)
-  , threadReplyTo :: !(Maybe textList)
+  , threadReplyTo :: !(Maybe Text)
   , threadPlainText :: !(Maybe Text)
   , threadDirection :: !(Maybe Direction)
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
-type Thread = ThreadPoly Int [Text]
+type Thread = ThreadPoly Int
 
 emptyThread :: Thread
 emptyThread = emptyZohoStructure
@@ -140,26 +140,23 @@ emptyThread = emptyZohoStructure
 $(makeLensesWith abbreviatedFields ''ThreadPoly)
 
 
-instance FromJSON (ThreadPoly Int [Text]) where
+instance FromJSON (ThreadPoly Int) where
   parseJSON v = fmap doConversion (genericParseJSON (zohoPrefix Casing.camelCase) v)
     where
-      doConversion :: ThreadPoly String Text -> ThreadPoly Int [Text]
+      doConversion :: ThreadPoly String -> ThreadPoly Int
       doConversion x@Thread{..} =
         x { threadAttachmentCount = join $ fmap readMaybe threadAttachmentCount
-          , threadCc = fmap ((fmap T.strip) . (T.splitOn ",")) threadCc
-          , threadBcc = fmap ((fmap T.strip) . (T.splitOn ",")) threadBcc
-          , threadReplyTo = fmap ((fmap T.strip) . (T.splitOn ",")) threadReplyTo
+          -- Keep email fields as raw comma-separated strings - no parsing needed
+          -- threadCc, threadBcc, threadReplyTo remain as Text
           }
 
-instance ToJSON (ThreadPoly Int [Text]) where
+instance ToJSON (ThreadPoly Int) where
   toJSON = (genericToJSON $ zohoPrefix Casing.camelCase) . doConversion
     where
-      doConversion :: ThreadPoly Int [Text] -> ThreadPoly String Text
+      doConversion :: ThreadPoly Int -> ThreadPoly String
       doConversion x@Thread{..} =
         x { threadAttachmentCount = show <$> threadAttachmentCount
-          , threadCc = fmap (T.intercalate ",") threadCc
-          , threadBcc = fmap (T.intercalate ",") threadBcc
-          , threadReplyTo = fmap (T.intercalate ",") threadReplyTo
+          -- Email fields already Text, no conversion needed
           }
 
 
@@ -254,7 +251,7 @@ sendEmailReply :: (HasZoho m)
                -> TicketId
                -> FromEmailAddress
                -> ToEmailAddress
-               -> [ToEmailAddress]
+               -> [ToEmailAddress]  -- Still accept list for API convenience
                -> Content
                -> Thread
                -> m (Either Error Thread)
@@ -262,6 +259,6 @@ sendEmailReply oid tid from_ to_ cc_ content_ a =
   create oid tid $ a
   & channel ?~ "EMAIL"
   & to ?~ to_
-  & cc ?~ cc_
+  & cc ?~ T.intercalate "," cc_  -- Convert list to comma-separated string
   & fromEmailAddress ?~ from_
   & content ?~ content_

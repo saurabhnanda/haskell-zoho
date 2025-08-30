@@ -35,6 +35,10 @@ type ArticleId = Text
 type CategoryId = Text
 type AuthorId = Text
 type TranslationId = Text
+type AgentId = Text
+type AgentZuid = Text
+type RoleId = Text
+type ProfileId = Text
 
 
 -- data ErrorCode = ZInvalidToken
