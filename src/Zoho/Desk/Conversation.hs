@@ -74,7 +74,7 @@ data ConversationEntryPoly attachCnt convType = ConversationEntryPoly
   , convIsForward :: !(Maybe Bool)
   , convHasAttach :: !(Maybe Bool)
   , convAttachmentCount :: !(Maybe attachCnt)
-  , convContentType :: !(Maybe Text) -- "text/html"
+  , convContentType :: !(Maybe ContentType)
   , convResponderId :: !(Maybe Text)
   , convRespondedIn :: !(Maybe Text) -- Duration like "00:05:14"
   -- Comment-specific fields (present when type = "comment")

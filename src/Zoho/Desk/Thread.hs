@@ -74,29 +74,6 @@ instance FromJSON Direction where
       "outbound" -> pure Out
       x -> fail $ "Unexpected " <> show x
 
-data ContentType = PlainText
-                 | Html
-                 | ContentTypeOther !Text
-                 deriving (Eq, Show, Ord)
-
-instance ToJSON ContentType where
-  toJSON x = toJSON $ case x of
-    PlainText -> "plainText"
-    Html -> "html"
-    ContentTypeOther s -> s
-
-instance FromJSON ContentType where
-  parseJSON = withText "Expecting Text to parse into ContentType" $ \t ->
-    pure $ case T.toLower t of
-    "plaintext" -> PlainText
-    "text/plain" -> PlainText
-    "plain" -> PlainText
-    "html" -> Html
-    "text/html" -> Html
-    "application/xhtml+xml" -> Html
-    x -> ContentTypeOther x
-
-
 -- TODO: Use proper email parser for threadCc, threadBcc, and threadReplyTo --
 -- else this will break on something like the following due to presence of
 -- comma:
