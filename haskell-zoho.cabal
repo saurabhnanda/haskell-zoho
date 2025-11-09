@@ -48,6 +48,7 @@ library
       Zoho.CRM.Users
       Zoho.CRM.Notes
       Zoho.Desk.Ticket
+      Zoho.Desk.Task
       Zoho.Desk.Tag
       Zoho.Desk.Thread
       Zoho.Desk.IM
