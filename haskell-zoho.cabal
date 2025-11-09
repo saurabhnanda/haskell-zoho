@@ -48,11 +48,11 @@ library
       Zoho.CRM.Users
       Zoho.CRM.Notes
       Zoho.Desk.Ticket
+      Zoho.Desk.Tag
       Zoho.Desk.Thread
       Zoho.Desk.IM
       Zoho.Desk.Conversation
       Zoho.Desk.Agent
-      Zoho.Desk.Tag
       Zoho.Desk.Article
       Zoho.CRM.Common.Utils
   other-modules:

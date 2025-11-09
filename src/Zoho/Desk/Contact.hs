@@ -13,12 +13,13 @@ import Data.Text (Text)
 import Data.Time (UTCTime, formatTime, defaultTimeLocale)
 import GHC.Generics
 import Zoho.Desk.Utils (contactJsonOptions)
-import Zoho.Types (EmptyZohoStructure(..), Error, zohoPrefix)
+import Zoho.Types (EmptyZohoStructure(..), Error, zohoPrefix, UnsafeEither(..))
 import Zoho.Types (OrgId(..), ApiName, ResponseWrapper(..))
 import Zoho.OAuth as ZO hiding (mkApiEndpoint)
 import Zoho.Desk.Common as Common
 import Zoho.Desk.Common
-import Network.HTTP.Client as HC (Request)
+import Network.HTTP.Client as HC (Request, newManager)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Zoho.ZohoM as ZM
 import qualified Data.Text as T
 import Prelude
@@ -229,3 +230,118 @@ search :: (HasZoho m, FromJSON cf)
 search sopts oid =
   ZM.runRequestAndParseOptionalResponse (SearchResults [] 0) Prelude.id $
   searchRequest sopts oid
+
+data ContactStatistics = ContactStatistics
+  { statsOpenTickets :: !(Maybe Int)
+  , statsClosedTickets :: !(Maybe Int)
+  , statsOnHoldTickets :: !(Maybe Int)
+  , statsOverdueTickets :: !(Maybe Int)
+  , statsSpamTickets :: !(Maybe Int)
+  , statsTotalTickets :: !(Maybe Int)
+  , statsAverageHappinessScore :: !(Maybe Float)
+  , statsAverageFirstResponseTime :: !(Maybe Text)
+  , statsAverageResponseTime :: !(Maybe Text)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
+$(makeLensesWith abbreviatedFields ''ContactStatistics)
+
+instance FromJSON ContactStatistics where
+  parseJSON = withObject "ContactStatistics" $ \o -> do
+    statsOpenTickets <- convertCount <$> (o .:? "openTickets")
+    statsClosedTickets <- convertCount <$> (o .:? "closedTickets")
+    statsOnHoldTickets <- convertCount <$> (o .:? "onHoldTickets")
+    statsOverdueTickets <- convertCount <$> (o .:? "overdueTickets")
+    statsSpamTickets <- convertCount <$> (o .:? "spamTickets")
+    statsTotalTickets <- convertCount <$> (o .:? "totalTickets")
+    statsAverageHappinessScore <- convertScore <$> (o .:? "averageHappinessScore")
+    statsAverageFirstResponseTime <- o .:? "averageFirstResponseTime"
+    statsAverageResponseTime <- o .:? "averageResponseTime"
+    pure ContactStatistics{..}
+    where
+      convertCount :: Maybe (UnsafeEither Int Text) -> Maybe Int
+      convertCount Nothing = Nothing
+      convertCount (Just (UnsafeLeft i)) = Just i
+      convertCount (Just (UnsafeRight t)) = readMaybe (toS t)
+
+      convertScore :: Maybe (UnsafeEither Float Text) -> Maybe Float
+      convertScore Nothing = Nothing
+      convertScore (Just (UnsafeLeft f)) = Just f
+      convertScore (Just (UnsafeRight t)) = readMaybe (toS t)
+
+instance ToJSON ContactStatistics where
+  toJSON = genericToJSON (zohoPrefix Casing.camelCase)
+
+getStatisticsRequest :: OrgId
+                     -> Text  -- Contact ID
+                     -> Request
+getStatisticsRequest oid contactId =
+  ZO.prepareGet (Common.mkApiEndpoint $ "/contacts/" <> toS contactId <> "/statistics") [] [Common.orgIdHeader oid]
+
+getStatistics :: (HasZoho m)
+              => OrgId
+              -> Text  -- Contact ID
+              -> m (Either Error ContactStatistics)
+getStatistics oid contactId =
+  ZM.runRequestAndParseResponse $
+  getStatisticsRequest oid contactId
+
+data MoveToTrashRequest = MoveToTrashRequest
+  { mttContactIds :: ![ContactId]
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON MoveToTrashRequest where
+  toJSON = genericToJSON (zohoPrefix Casing.camelCase)
+
+moveToTrashRequest :: OrgId -> [ContactId] -> Request
+moveToTrashRequest oid contactIds =
+  ZO.prepareJSONPost (Common.mkApiEndpoint "/contacts/moveToTrash") [] [Common.orgIdHeader oid] $
+    MoveToTrashRequest contactIds
+
+moveToTrash :: (HasZoho m) => OrgId -> [ContactId] -> m (Either Error ())
+moveToTrash oid contactIds =
+  ZM.runRequestAndParseOptionalResponse () Prelude.id $
+  moveToTrashRequest oid contactIds
+
+-- Update many contacts API
+data UpdateManyRequest = UpdateManyRequest
+  { umrIds :: ![ContactId]
+  , umrFieldName :: !Text
+  , umrFieldValue :: !(Maybe Text)
+  , umrIsCustomField :: !(Maybe Bool)
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON UpdateManyRequest where
+  toJSON = genericToJSON (zohoPrefix Casing.camelCase)
+
+data UpdateManyError = UpdateManyError
+  { umeErrorCode :: !Text
+  , umeHttpCode :: !Text
+  } deriving (Eq, Show, Generic)
+
+instance FromJSON UpdateManyError where
+  parseJSON = genericParseJSON (zohoPrefix Casing.camelCase)
+
+data UpdateManyResult = UpdateManyResult
+  { umrSuccess :: !Bool
+  , umrId :: !ContactId
+  , umrErrors :: !(Maybe UpdateManyError)
+  } deriving (Eq, Show, Generic)
+
+instance FromJSON UpdateManyResult where
+  parseJSON = genericParseJSON (zohoPrefix Casing.camelCase)
+
+data UpdateManyResponse = UpdateManyResponse
+  { umrespResults :: ![UpdateManyResult]
+  } deriving (Eq, Show, Generic)
+
+instance FromJSON UpdateManyResponse where
+  parseJSON = genericParseJSON (zohoPrefix Casing.camelCase)
+
+updateManyRequest :: OrgId -> UpdateManyRequest -> Request
+updateManyRequest oid req =
+  ZO.prepareJSONPost (Common.mkApiEndpoint "/contacts/updateMany") [] [Common.orgIdHeader oid] req
+
+updateMany :: (HasZoho m) => OrgId -> UpdateManyRequest -> m (Either Error UpdateManyResponse)
+updateMany oid req =
+  ZM.runRequestAndParseResponse $
+  updateManyRequest oid req
