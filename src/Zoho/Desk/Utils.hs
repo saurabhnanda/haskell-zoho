@@ -36,3 +36,9 @@ threadStatusJsonOptions = Aeson.defaultOptions {Aeson.constructorTagModifier = (
 
 threadJsonOptions :: Aeson.Options
 threadJsonOptions = zohoPrefix Casing.camelCase
+
+taskJsonOptions :: Aeson.Options
+taskJsonOptions = zohoPrefix $ \s ->
+  case s of
+    "CustomFields" -> "cf"
+    x -> Casing.camelCase x

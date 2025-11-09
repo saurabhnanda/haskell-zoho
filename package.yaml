@@ -89,6 +89,7 @@ library:
     - Zoho.CRM.Notes
     - Zoho.Desk.Ticket
     - Zoho.Desk.Tag
+    - Zoho.Desk.Task
     - Zoho.Desk.Thread
     - Zoho.Desk.IM
     - Zoho.Desk.Conversation

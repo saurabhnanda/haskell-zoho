@@ -64,6 +64,7 @@ type AgentZuid = Text
 type RoleId = Text
 type ProfileId = Text
 type TagId = Text
+type TaskId = Text
 
 
 -- data ErrorCode = ZInvalidToken
