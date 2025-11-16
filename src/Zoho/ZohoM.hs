@@ -405,6 +405,7 @@ defaultRunRequest isAuthenticated req = do
           case ((HC.responseBody r) ^? (key "code")) <|> ((HC.responseBody r) ^? (key "errorCode")) <|> ((HC.responseBody r) ^? (key "data") . (key "errorCode")) of
             Just (Aeson.String "INVALID_TOKEN") -> handleSecurityError mAtkn r
             Just (Aeson.String "INVALID_OAUTH") -> handleSecurityError mAtkn r
+            Just (Aeson.String "oauthtoken_invalid") -> handleSecurityError mAtkn r  -- Zoho Cliq
             Just (Aeson.Number 57) -> handleSecurityError mAtkn r
             Just (Aeson.Number 8535) -> handleSecurityError mAtkn r
             _ -> throwHttpException r

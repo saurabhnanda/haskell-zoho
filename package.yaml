@@ -96,3 +96,5 @@ library:
     - Zoho.Desk.Agent
     - Zoho.Desk.Article
     - Zoho.CRM.Common.Utils
+    - Zoho.Cliq.Channel
+    - Zoho.Cliq.Message
