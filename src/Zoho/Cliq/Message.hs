@@ -129,6 +129,8 @@ $(makeLensesWith abbreviatedFields ''MessageSender)
 -- | Message content (simplified - can be extended for file attachments)
 data MessageContent = MessageContent
   { contentText :: !(Maybe Text)
+  , contentEdited :: !(Maybe Bool)        -- ^ True if message was edited
+  , contentEditedTime :: !(Maybe POSIXTime)  -- ^ Timestamp when message was last edited
   } deriving (Eq, Show, Generic)
 
 instance FromJSON MessageContent where
