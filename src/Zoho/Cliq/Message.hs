@@ -19,6 +19,19 @@ module Zoho.Cliq.Message
   , EditMessageReq(..)
   , GetMessagesOptions(..)
 
+  -- * Rich Message Types
+  , CliqMessage(..)
+  , CliqStandardMessage(..)
+  , CliqButton(..)
+  , CliqButtonAction(..)
+  , CliqForm(..)
+  , CliqBanner(..)
+
+  -- * Smart Constructors
+  , textMessage
+  , textWithButtons
+  , toPostMessageReq
+
   -- * Re-exports from Zoho.Cliq.Channel
   , module Zoho.Cliq.Channel
 
@@ -32,14 +45,19 @@ module Zoho.Cliq.Message
   , editMessage
   , deleteMessage
   , getReactions
+
+  -- * Utilities
+  , escapeExclamation
   ) where
 
 import Control.Lens.TH (abbreviatedFields, makeLensesWith)
 import Data.Aeson
+import Data.Aeson.Types (Object)
 import qualified Data.Aeson.Casing as Casing
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HM
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -147,18 +165,158 @@ data GetMessagesOptions = GetMessagesOptions
 
 $(makeLensesWith abbreviatedFields ''GetMessagesOptions)
 
--- | Request body for posting a message
+-- | Button action types
+data CliqButtonAction
+  = CliqInvokeFunction !Text !(Maybe Text)  -- ^ function name, optional owner email
+  | CliqOpenUrl !Text                        -- ^ URL to open
+  deriving (Eq, Show, Generic)
+
+instance ToJSON CliqButtonAction where
+  toJSON (CliqInvokeFunction name mOwner) = object $
+    [ "type" .= ("invoke.function" :: Text)
+    , "data" .= object (["name" .= name] ++ maybe [] (\owner -> ["owner" .= owner]) mOwner)
+    ]
+  toJSON (CliqOpenUrl url) = object
+    [ "type" .= ("open.url" :: Text)
+    , "data" .= object ["web" .= url]
+    ]
+
+-- | Button with label, type, key, and action
+data CliqButton = CliqButton
+  { cbLabel :: !Text                   -- ^ Button label text (max 20 characters)
+  , cbTyp :: !Text                     -- ^ "+" for primary, "-" for secondary (will be serialized as "type")
+  , cbKey :: !Text                     -- ^ Passed to function as arguments.get("key")
+  , cbAction :: !CliqButtonAction
+  , cbHint :: !(Maybe Text)            -- ^ Optional tooltip text
+  , cbArguments :: !(Maybe Value)      -- ^ Custom data passed to function handler
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqButton where
+  toJSON = genericToJSON $ (zohoPrefixTyp Casing.camelCase) { omitNothingFields = True }
+
+$(makeLensesWith abbreviatedFields ''CliqButton)
+
+-- | Form message (placeholder - will be expanded later)
+data CliqForm = CliqForm
+  { cfTitle :: !Text
+  , cfHint :: !(Maybe Text)
+  , cfName :: !Text
+  , cfButtonLabel :: !Text
+  , cfInputs :: !Value  -- TODO: add CliqFormInput type
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqForm where
+  toJSON = genericToJSON $ zohoPrefixTyp Casing.camelCase
+
+$(makeLensesWith abbreviatedFields ''CliqForm)
+
+-- | Banner message (placeholder - will be expanded later)
+data CliqBanner = CliqBanner
+  { cbanText :: !Text
+  , cbanTyp :: !Text  -- ^ "info", "success", "warning", "error" (will be serialized as "type")
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqBanner where
+  toJSON = genericToJSON $ zohoPrefixTyp Casing.camelCase
+
+$(makeLensesWith abbreviatedFields ''CliqBanner)
+
+-- | Standard Cliq message where all fields can coexist
+-- Any combination of text, card, slides, buttons, and suggestions is valid
+data CliqStandardMessage = CliqStandardMessage
+  { csmText :: !(Maybe Text)           -- ^ Message text (markdown supported)
+  , csmCard :: !(Maybe Value)          -- ^ Card object (TODO: add CliqCard type)
+  , csmSlides :: !(Maybe Value)        -- ^ Slides array (TODO: add CliqSlide type)
+  , csmButtons :: !(Maybe [CliqButton]) -- ^ Action buttons (max 25)
+  , csmSuggestions :: !(Maybe Value)   -- ^ Quick reply suggestions (TODO: add CliqSuggestions type)
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqStandardMessage where
+  toJSON = genericToJSON $ (zohoPrefixTyp Casing.camelCase) { omitNothingFields = True }
+
+$(makeLensesWith abbreviatedFields ''CliqStandardMessage)
+
+-- | Top-level Cliq message type with mutually exclusive variants
+--
+-- Standard messages allow any combination of text, card, slides, buttons, suggestions.
+-- Special message types (form, transient, banner) are standalone and cannot be combined with standard elements.
+data CliqMessage
+  = CliqStandard !CliqStandardMessage  -- ^ Standard message with combinable elements
+  | CliqFormMessage !CliqForm          -- ^ Form message (requires type="form")
+  | CliqTransientMessage !Text         -- ^ Transient/temporary message (requires type="transient_message")
+  | CliqBannerMessage !CliqBanner      -- ^ Banner platform notification
+  deriving (Eq, Show, Generic)
+
+instance ToJSON CliqMessage where
+  toJSON (CliqStandard msg) = toJSON msg
+  toJSON (CliqFormMessage form) = object
+    [ "type" .= ("form" :: Text)
+    , "form" .= form
+    ]
+  toJSON (CliqTransientMessage txt) = object
+    [ "type" .= ("transient_message" :: Text)
+    , "text" .= txt
+    ]
+  toJSON (CliqBannerMessage banner) = object
+    [ "banner" .= banner
+    ]
+
+-- | Smart constructor: Create a text-only message
+textMessage :: Text -> CliqMessage
+textMessage txt = CliqStandard $ CliqStandardMessage
+  { csmText = Just txt
+  , csmCard = Nothing
+  , csmSlides = Nothing
+  , csmButtons = Nothing
+  , csmSuggestions = Nothing
+  }
+
+-- | Smart constructor: Create a message with text and buttons
+textWithButtons :: Text -> [CliqButton] -> CliqMessage
+textWithButtons txt btns = CliqStandard $ CliqStandardMessage
+  { csmText = Just txt
+  , csmCard = Nothing
+  , csmSlides = Nothing
+  , csmButtons = Just btns
+  , csmSuggestions = Nothing
+  }
+
+-- | Request body for posting a message via REST API
+-- See: docs/ZOHO-CLIQ.md for full documentation
+--
+-- This type wraps CliqMessage and adds REST API specific fields (replyTo, syncMessage, markAsRead).
+-- For building messages, use CliqMessage constructors or smart constructors like textMessage, textWithButtons.
+--
+-- Note: Not all message types may be supported by all endpoints. Standard messages work everywhere.
+-- Forms, transient messages, and banners may only work in specific contexts.
 data PostMessageReq = PostMessageReq
-  { reqText :: !Text
-  , reqReplyTo :: !(Maybe MessageId)
-  , reqSyncMessage :: !(Maybe Bool)
-  , reqMarkAsRead :: !(Maybe Bool)
+  { reqMessage :: !CliqMessage              -- ^ The message content (all types supported)
+  , reqReplyTo :: !(Maybe MessageId)        -- ^ Optional message to reply to
+  , reqSyncMessage :: !(Maybe Bool)         -- ^ Return message ID synchronously
+  , reqMarkAsRead :: !(Maybe Bool)          -- ^ Mark message as read
   } deriving (Eq, Show, Generic)
 
 instance ToJSON PostMessageReq where
-  toJSON = genericToJSON (zohoPrefixTyp Casing.camelCase)
+  toJSON PostMessageReq{..} =
+    let msgFields = case toJSON reqMessage of
+          Object obj -> obj
+          _ -> mempty
+        extraFields = object $
+          maybe [] (\x -> ["replyTo" .= x]) reqReplyTo ++
+          maybe [] (\x -> ["syncMessage" .= x]) reqSyncMessage ++
+          maybe [] (\x -> ["markAsRead" .= x]) reqMarkAsRead
+    in Object (msgFields <> case extraFields of Object o -> o; _ -> mempty)
 
 $(makeLensesWith abbreviatedFields ''PostMessageReq)
+
+-- | Create a PostMessageReq from a CliqMessage
+toPostMessageReq :: CliqMessage -> PostMessageReq
+toPostMessageReq msg = PostMessageReq
+  { reqMessage = msg
+  , reqReplyTo = Nothing
+  , reqSyncMessage = Nothing
+  , reqMarkAsRead = Nothing
+  }
 
 -- | Response from POST message endpoint (when sync_message = true)
 newtype PostMessageResponse = PostMessageResponse
@@ -319,3 +477,14 @@ getReactions :: (ZM.HasZoho m)
 getReactions cid mid = do
   result :: Either Error (ResponseWrapper "data" (HashMap Text [Text])) <- ZM.runRequestAndParseResponse $ getReactionsRequest cid mid
   pure $ fmap unwrapResponse result
+
+-- | Escape exclamation marks for Zoho Cliq message text
+--
+-- NOTE: This is ONLY needed when posting messages via Deluge scripts.
+-- When using the REST API directly (postMessageToChannel, postMessageToChannelAsBot, etc.),
+-- exclamation marks work fine and DO NOT need escaping.
+--
+-- This function is provided for compatibility with Deluge-based integrations where
+-- exclamation marks need to be escaped as \! to avoid "input_json_invalid" errors.
+escapeExclamation :: Text -> Text
+escapeExclamation = T.replace "!" "\\!"
