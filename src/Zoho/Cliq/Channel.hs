@@ -76,7 +76,7 @@ $(makeLensesWith abbreviatedFields ''Channel)
 data CreateChannelReq = CreateChannelReq
   { createName :: !Text                 -- ^ Channel name
   , createDescription :: !(Maybe Text)  -- ^ Channel description
-  , createUserIds :: ![Text]           -- ^ User IDs to add to channel
+  , createUserIds :: !(Maybe [Text])    -- ^ User IDs to add to channel (optional, omit for private channels with just creator)
   , createTeamIds :: !(Maybe [Text])    -- ^ Team IDs (optional)
   , createLevel :: !(Maybe Text)        -- ^ Channel level (optional, e.g., "team")
   } deriving (Eq, Show, Generic)
