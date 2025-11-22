@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -10,9 +11,12 @@ module Zoho.Cliq.Channel
     ChannelId(..)
   , ChannelUniqueName(..)
   , Channel(..)
+  , CreateChannelReq(..)
+  , CreateChannelResponse(..)
   , ListChannelsOptions(..)
 
   -- * API Functions
+  , createChannel
   , listChannels
   ) where
 
@@ -60,12 +64,36 @@ data Channel = Channel
   } deriving (Eq, Show, Generic)
 
 instance FromJSON Channel where
-  parseJSON = genericParseJSON (zohoPrefixTyp Casing.camelCase)
+  parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
 instance ToJSON Channel where
-  toJSON = genericToJSON (zohoPrefixTyp Casing.camelCase)
+  toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
 
 $(makeLensesWith abbreviatedFields ''Channel)
+
+-- | Request to create a channel
+-- Note: No lenses generated - API boundary types use record accessors directly
+data CreateChannelReq = CreateChannelReq
+  { createName :: !Text                 -- ^ Channel name
+  , createDescription :: !(Maybe Text)  -- ^ Channel description
+  , createUserIds :: ![Text]           -- ^ User IDs to add to channel
+  , createTeamIds :: !(Maybe [Text])    -- ^ Team IDs (optional)
+  , createLevel :: !(Maybe Text)        -- ^ Channel level (optional, e.g., "team")
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CreateChannelReq where
+  toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
+
+-- | Response from creating a channel
+-- Note: No lenses generated - API boundary types use record accessors directly
+data CreateChannelResponse = CreateChannelResponse
+  { createChannelId :: !ChannelId    -- ^ Created channel ID
+  , createChatId :: !Text            -- ^ Chat ID for the channel
+  , createUniqueName :: !Text        -- ^ Unique name of the channel
+  } deriving (Eq, Show, Generic)
+
+instance FromJSON CreateChannelResponse where
+  parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
 -- | Options for listing channels
 data ListChannelsOptions = ListChannelsOptions
@@ -104,3 +132,15 @@ listChannels :: (ZM.HasZoho m)
 listChannels opts = do
   result :: Either Error (ResponseWrapper "channels" [Channel]) <- ZM.runRequestAndParseResponse $ listChannelsRequest opts
   pure $ fmap unwrapResponse result
+
+-- | Create a channel - Request builder
+createChannelRequest :: CreateChannelReq -> Request
+createChannelRequest req =
+  let endpoint = mkCliqEndpoint "/channels"
+  in ZO.prepareJSONPost endpoint [] [] req
+
+-- | Create a channel
+createChannel :: (ZM.HasZoho m)
+              => CreateChannelReq
+              -> m (Either Error CreateChannelResponse)
+createChannel req = ZM.runRequestAndParseResponse $ createChannelRequest req

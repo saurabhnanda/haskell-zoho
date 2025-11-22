@@ -8,7 +8,8 @@
 module Zoho.Cliq.Message
   ( -- * Types
     ChatId(..)
-  , MessageId(..)
+    , MessageId(..)
+  , UserId(..)
   , BotUniqueName(..)
   , MessageType(..)
   , MessageSender(..)
@@ -70,32 +71,49 @@ import Zoho.Types (Error, ResponseWrapper, zohoPrefixTyp, unwrapResponse)
 import qualified Zoho.OAuth as ZO
 import qualified Zoho.ZohoM as ZM
 
+-- | JSON options for newtypes - unwraps unary records to raw values
+jsonOpts :: Options
+jsonOpts = defaultOptions { unwrapUnaryRecords = True }
+
 -- | Chat identifier
 newtype ChatId = ChatId { rawChatId :: Text }
   deriving (Eq, Show, Generic)
 
 instance FromJSON ChatId where
-  parseJSON = withText "ChatId" (pure . ChatId)
+  parseJSON = genericParseJSON jsonOpts
 
 instance ToJSON ChatId where
-  toJSON (ChatId t) = String t
+  toJSON = genericToJSON jsonOpts
 
 -- | Message identifier
 newtype MessageId = MessageId { rawMessageId :: Text }
   deriving (Eq, Show, Generic)
 
 instance FromJSON MessageId where
-  parseJSON = withText "MessageId" (pure . MessageId)
+  parseJSON = genericParseJSON jsonOpts
 
 instance ToJSON MessageId where
-  toJSON (MessageId t) = String t
+  toJSON = genericToJSON jsonOpts
+
+-- | User identifier
+newtype UserId = UserId { rawUserId :: Text }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON UserId where
+  parseJSON = genericParseJSON jsonOpts
+
+instance ToJSON UserId where
+  toJSON = genericToJSON jsonOpts
 
 -- | Bot unique name
 newtype BotUniqueName = BotUniqueName { rawBotUniqueName :: Text }
   deriving (Eq, Show, Generic)
 
+instance FromJSON BotUniqueName where
+  parseJSON = genericParseJSON jsonOpts
+
 instance ToJSON BotUniqueName where
-  toJSON (BotUniqueName t) = String t
+  toJSON = genericToJSON jsonOpts
 
 -- | Message type
 data MessageType = TextMessage | FileMessage | OtherMessageType Text
@@ -115,14 +133,14 @@ instance ToJSON MessageType where
 -- | Message sender
 data MessageSender = MessageSender
   { senderName :: !Text
-  , senderId :: !Text
+  , senderId :: !UserId
   } deriving (Eq, Show, Generic)
 
 instance FromJSON MessageSender where
-  parseJSON = genericParseJSON (zohoPrefixTyp Casing.camelCase)
+  parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
 instance ToJSON MessageSender where
-  toJSON = genericToJSON (zohoPrefixTyp Casing.camelCase)
+  toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
 
 $(makeLensesWith abbreviatedFields ''MessageSender)
 
@@ -134,10 +152,10 @@ data MessageContent = MessageContent
   } deriving (Eq, Show, Generic)
 
 instance FromJSON MessageContent where
-  parseJSON = genericParseJSON (zohoPrefixTyp Casing.camelCase)
+  parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
 instance ToJSON MessageContent where
-  toJSON = genericToJSON (zohoPrefixTyp Casing.camelCase)
+  toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
 
 $(makeLensesWith abbreviatedFields ''MessageContent)
 
@@ -151,10 +169,10 @@ data Message = Message
   } deriving (Eq, Show, Generic)
 
 instance FromJSON Message where
-  parseJSON = genericParseJSON (zohoPrefixTyp Casing.camelCase)
+  parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
 instance ToJSON Message where
-  toJSON = genericToJSON (zohoPrefixTyp Casing.camelCase)
+  toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
 
 $(makeLensesWith abbreviatedFields ''Message)
 
@@ -194,7 +212,7 @@ data CliqButton = CliqButton
   } deriving (Eq, Show, Generic)
 
 instance ToJSON CliqButton where
-  toJSON = genericToJSON $ (zohoPrefixTyp Casing.camelCase) { omitNothingFields = True }
+  toJSON = genericToJSON $ (zohoPrefixTyp Casing.snakeCase) { omitNothingFields = True }
 
 $(makeLensesWith abbreviatedFields ''CliqButton)
 
@@ -208,7 +226,7 @@ data CliqForm = CliqForm
   } deriving (Eq, Show, Generic)
 
 instance ToJSON CliqForm where
-  toJSON = genericToJSON $ zohoPrefixTyp Casing.camelCase
+  toJSON = genericToJSON $ zohoPrefixTyp Casing.snakeCase
 
 $(makeLensesWith abbreviatedFields ''CliqForm)
 
@@ -219,7 +237,7 @@ data CliqBanner = CliqBanner
   } deriving (Eq, Show, Generic)
 
 instance ToJSON CliqBanner where
-  toJSON = genericToJSON $ zohoPrefixTyp Casing.camelCase
+  toJSON = genericToJSON $ zohoPrefixTyp Casing.snakeCase
 
 $(makeLensesWith abbreviatedFields ''CliqBanner)
 
@@ -234,7 +252,7 @@ data CliqStandardMessage = CliqStandardMessage
   } deriving (Eq, Show, Generic)
 
 instance ToJSON CliqStandardMessage where
-  toJSON = genericToJSON $ (zohoPrefixTyp Casing.camelCase) { omitNothingFields = True }
+  toJSON = genericToJSON $ (zohoPrefixTyp Casing.snakeCase) { omitNothingFields = True }
 
 $(makeLensesWith abbreviatedFields ''CliqStandardMessage)
 
@@ -338,7 +356,7 @@ data EditMessageReq = EditMessageReq
   } deriving (Eq, Show, Generic)
 
 instance ToJSON EditMessageReq where
-  toJSON = genericToJSON (zohoPrefixTyp Casing.camelCase)
+  toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
 
 $(makeLensesWith abbreviatedFields ''EditMessageReq)
 
