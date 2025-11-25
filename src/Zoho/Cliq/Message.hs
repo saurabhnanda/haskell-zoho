@@ -435,11 +435,11 @@ postMessageToChatRequest cid msgReq =
   in ZO.prepareJSONPost endpoint [] [] msgReq
 
 -- | Post a message to a chat by chat ID
--- Returns Nothing if sync_message was not set (empty response), Just Value if sync_message=true
+-- Returns Nothing if sync_message was not set (empty response), Just PostMessageResponse if sync_message=true
 postMessageToChat :: (ZM.HasZoho m)
                   => ChatId
                   -> PostMessageReq
-                  -> m (Either Error (Maybe Value))
+                  -> m (Either Error (Maybe PostMessageResponse))
 postMessageToChat cid msgReq = ZM.runRequestAndParseOptionalResponse Nothing Just $ postMessageToChatRequest cid msgReq
 
 -- | Post a message to a user by email ID - Request builder
