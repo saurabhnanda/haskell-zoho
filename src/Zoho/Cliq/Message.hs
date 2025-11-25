@@ -10,7 +10,6 @@ module Zoho.Cliq.Message
     ChatId(..)
     , MessageId(..)
   , UserId(..)
-  , BotUniqueName(..)
   , MessageType(..)
   , MessageSender(..)
   , MessageContent(..)
@@ -103,16 +102,6 @@ instance FromJSON UserId where
   parseJSON = genericParseJSON jsonOpts
 
 instance ToJSON UserId where
-  toJSON = genericToJSON jsonOpts
-
--- | Bot unique name
-newtype BotUniqueName = BotUniqueName { rawBotUniqueName :: Text }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON BotUniqueName where
-  parseJSON = genericParseJSON jsonOpts
-
-instance ToJSON BotUniqueName where
   toJSON = genericToJSON jsonOpts
 
 -- | Message type

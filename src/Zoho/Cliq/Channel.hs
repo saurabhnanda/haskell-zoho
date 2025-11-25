@@ -15,9 +15,13 @@ module Zoho.Cliq.Channel
   , CreateChannelResponse(..)
   , ListChannelsOptions(..)
 
+  -- * Re-exports from Common
+  , BotUniqueName(..)
+
   -- * API Functions
   , createChannel
   , listChannels
+  , associateBotWithChannel
   ) where
 
 import Control.Lens.TH (abbreviatedFields, makeLensesWith)
@@ -30,6 +34,7 @@ import Data.Time.Clock.POSIX (POSIXTime)
 import GHC.Generics
 import Network.HTTP.Client (Request)
 import qualified URI.ByteString as U
+import Zoho.Cliq.Common (BotUniqueName(..))
 import Zoho.Types (Error, ResponseWrapper, zohoPrefixTyp, unwrapResponse)
 import qualified Zoho.OAuth as ZO
 import qualified Zoho.ZohoM as ZM
@@ -144,3 +149,21 @@ createChannel :: (ZM.HasZoho m)
               => CreateChannelReq
               -> m (Either Error CreateChannelResponse)
 createChannel req = ZM.runRequestAndParseResponse $ createChannelRequest req
+
+-- | Associate a bot with a channel - Request builder
+-- POST /api/v2/bots/{BOT_UNIQUE_NAME}/associate
+-- Payload: { "channel_unique_name": {CHANNEL_UNIQUE_NAME} }
+associateBotWithChannelRequest :: BotUniqueName -> ChannelUniqueName -> Request
+associateBotWithChannelRequest (BotUniqueName botName) (ChannelUniqueName channelName) =
+  let endpoint = mkCliqEndpoint $ "/bots/" <> toS botName <> "/associate"
+      payload = object ["channel_unique_name" .= channelName]
+  in ZO.prepareJSONPost endpoint [] [] payload
+
+-- | Associate a bot with a channel
+-- Returns 204 No Content on success
+associateBotWithChannel :: (ZM.HasZoho m)
+                        => BotUniqueName      -- ^ Bot's unique name
+                        -> ChannelUniqueName  -- ^ Channel's unique name
+                        -> m (Either Error ())
+associateBotWithChannel botName channelName =
+  ZM.runRequestAndParseOptionalResponse () Prelude.id $ associateBotWithChannelRequest botName channelName
