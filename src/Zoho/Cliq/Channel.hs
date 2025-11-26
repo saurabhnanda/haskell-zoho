@@ -79,7 +79,7 @@ $(makeLensesWith abbreviatedFields ''Channel)
 -- | Request to create a channel
 -- Note: No lenses generated - API boundary types use record accessors directly
 data CreateChannelReq = CreateChannelReq
-  { createName :: !Text                 -- ^ Channel name
+  { createName :: !Text                 -- ^ Channel name (max 50 characters)
   , createDescription :: !(Maybe Text)  -- ^ Channel description
   , createUserIds :: !(Maybe [Text])    -- ^ User IDs to add to channel (optional, omit for private channels with just creator)
   , createTeamIds :: !(Maybe [Text])    -- ^ Team IDs (optional)

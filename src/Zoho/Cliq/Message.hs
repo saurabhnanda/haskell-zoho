@@ -271,6 +271,8 @@ instance ToJSON CliqMessage where
     ]
 
 -- | Smart constructor: Create a text-only message
+-- WARNING: Cliq has a 5000 character limit for message text. Exceeding this will cause
+-- "input_maxlength_reached" API errors. Truncate your text before calling this function.
 textMessage :: Text -> CliqMessage
 textMessage txt = CliqStandard $ CliqStandardMessage
   { csmText = Just txt
@@ -301,7 +303,9 @@ textWithButtons txt btns = CliqStandard $ CliqStandardMessage
 data PostMessageReq = PostMessageReq
   { reqMessage :: !CliqMessage              -- ^ The message content (all types supported)
   , reqReplyTo :: !(Maybe MessageId)        -- ^ Optional message to reply to
-  , reqSyncMessage :: !(Maybe Bool)         -- ^ Return message ID synchronously
+  , reqSyncMessage :: !(Maybe Bool)         -- ^ WARNING: Do NOT set this to Just True. Despite docs claiming it
+                                           -- returns message_id, setting this causes API errors ("extra_key_found").
+                                           -- Bot posts do not support sync_message. Always use Nothing.
   , reqMarkAsRead :: !(Maybe Bool)          -- ^ Mark message as read
   } deriving (Eq, Show, Generic)
 
