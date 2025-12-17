@@ -303,9 +303,7 @@ textWithButtons txt btns = CliqStandard $ CliqStandardMessage
 data PostMessageReq = PostMessageReq
   { reqMessage :: !CliqMessage              -- ^ The message content (all types supported)
   , reqReplyTo :: !(Maybe MessageId)        -- ^ Optional message to reply to
-  , reqSyncMessage :: !(Maybe Bool)         -- ^ WARNING: Do NOT set this to Just True. Despite docs claiming it
-                                           -- returns message_id, setting this causes API errors ("extra_key_found").
-                                           -- Bot posts do not support sync_message. Always use Nothing.
+  , reqSyncMessage :: !(Maybe Bool)         -- ^ If True, API returns message_id synchronously (useful for edit-after-post flows)
   , reqMarkAsRead :: !(Maybe Bool)          -- ^ Mark message as read
   } deriving (Eq, Show, Generic)
 
