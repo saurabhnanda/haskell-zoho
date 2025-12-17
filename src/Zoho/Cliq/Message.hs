@@ -330,15 +330,12 @@ toPostMessageReq msg = PostMessageReq
   }
 
 -- | Response from POST message endpoint (when sync_message = true)
-newtype PostMessageResponse = PostMessageResponse
-  { postResponseMessageId :: MessageId  -- Different prefix to avoid conflict with Message's messageId
+data PostMessageResponse = PostMessageResponse
+  { resMessageId :: !MessageId
   } deriving (Eq, Show, Generic)
 
 instance FromJSON PostMessageResponse where
-  parseJSON = withObject "PostMessageResponse" $ \o ->
-    PostMessageResponse <$> o .: "message_id"
-
-$(makeLensesWith abbreviatedFields ''PostMessageResponse)
+  parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
 -- | Request body for editing a message
 data EditMessageReq = EditMessageReq
@@ -396,11 +393,11 @@ postMessageToChannelRequest channelName msgReq =
   in ZO.prepareJSONPost endpoint [] [] msgReq
 
 -- | Post a message to a channel by channel unique name
--- Returns Nothing if sync_message was not set (empty response), Just Value if sync_message=true
+-- Returns Nothing if sync_message was not set (empty response), Just PostMessageResponse if sync_message=true
 postMessageToChannel :: (ZM.HasZoho m)
                      => ChannelUniqueName
                      -> PostMessageReq
-                     -> m (Either Error (Maybe Value))
+                     -> m (Either Error (Maybe PostMessageResponse))
 postMessageToChannel channelName msgReq = ZM.runRequestAndParseOptionalResponse Nothing Just $ postMessageToChannelRequest channelName msgReq
 
 -- | Post a message to a channel as a bot - Request builder
@@ -411,12 +408,12 @@ postMessageToChannelAsBotRequest channelName botName msgReq =
   in ZO.prepareJSONPost endpoint queryParams [] msgReq
 
 -- | Post a message to a channel as a bot
--- Returns Nothing if sync_message was not set (empty response), Just Value if sync_message=true
+-- Returns Nothing if sync_message was not set (empty response), Just PostMessageResponse if sync_message=true
 postMessageToChannelAsBot :: (ZM.HasZoho m)
                           => ChannelUniqueName
                           -> BotUniqueName
                           -> PostMessageReq
-                          -> m (Either Error (Maybe Value))
+                          -> m (Either Error (Maybe PostMessageResponse))
 postMessageToChannelAsBot channelName botName msgReq = ZM.runRequestAndParseOptionalResponse Nothing Just $ postMessageToChannelAsBotRequest channelName botName msgReq
 
 -- | Post a message to a chat by chat ID - Request builder
@@ -440,11 +437,11 @@ postMessageToUserRequest email msgReq =
   in ZO.prepareJSONPost endpoint [] [] msgReq
 
 -- | Post a message to a user by email ID
--- Returns Nothing if sync_message was not set (empty response), Just Value if sync_message=true
+-- Returns Nothing if sync_message was not set (empty response), Just PostMessageResponse if sync_message=true
 postMessageToUser :: (ZM.HasZoho m)
                   => Text  -- ^ Email ID
                   -> PostMessageReq
-                  -> m (Either Error (Maybe Value))
+                  -> m (Either Error (Maybe PostMessageResponse))
 postMessageToUser email msgReq = ZM.runRequestAndParseOptionalResponse Nothing Just $ postMessageToUserRequest email msgReq
 
 -- | Edit a message - Request builder
