@@ -315,9 +315,9 @@ instance ToJSON PostMessageReq where
           Object obj -> obj
           _ -> mempty
         extraFields = object $
-          maybe [] (\x -> ["replyTo" .= x]) reqReplyTo ++
-          maybe [] (\x -> ["syncMessage" .= x]) reqSyncMessage ++
-          maybe [] (\x -> ["markAsRead" .= x]) reqMarkAsRead
+          maybe [] (\x -> ["reply_to" .= x]) reqReplyTo ++
+          maybe [] (\x -> ["sync_message" .= x]) reqSyncMessage ++
+          maybe [] (\x -> ["mark_as_read" .= x]) reqMarkAsRead
     in Object (msgFields <> case extraFields of Object o -> o; _ -> mempty)
 
 $(makeLensesWith abbreviatedFields ''PostMessageReq)
