@@ -208,6 +208,15 @@ prepareJSONPatch :: (ToJSON a)
 prepareJSONPatch u q h pload =
   prepareWithPayload "PATCH" u q h (Aeson.encode pload)
 
+prepareJSONPut :: (ToJSON a)
+               => URI
+               -> [(BS.ByteString, Maybe BS.ByteString)]
+               -> RequestHeaders
+               -> a
+               -> Request
+prepareJSONPut u q h pload =
+  prepareWithPayload "PUT" u q h (Aeson.encode pload)
+
 
 
 preparePost :: URI

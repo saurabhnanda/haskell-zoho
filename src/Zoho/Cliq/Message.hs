@@ -448,10 +448,11 @@ postMessageToUser :: (ZM.HasZoho m)
 postMessageToUser email msgReq = ZM.runRequestAndParseOptionalResponse Nothing Just $ postMessageToUserRequest email msgReq
 
 -- | Edit a message - Request builder
+-- Note: Zoho Cliq requires PUT (not PATCH) for editing messages
 editMessageRequest :: ChatId -> MessageId -> EditMessageReq -> Request
 editMessageRequest cid mid editReq =
   let endpoint = mkCliqEndpoint $ "/chats/" <> toS (rawChatId cid) <> "/messages/" <> toS (rawMessageId mid)
-  in ZO.prepareJSONPatch endpoint [] [] editReq
+  in ZO.prepareJSONPut endpoint [] [] editReq
 
 -- | Edit a message
 editMessage :: (ZM.HasZoho m)
