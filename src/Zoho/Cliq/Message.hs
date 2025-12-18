@@ -89,7 +89,10 @@ newtype MessageId = MessageId { rawMessageId :: Text }
   deriving (Eq, Show, Generic)
 
 instance FromJSON MessageId where
-  parseJSON = genericParseJSON jsonOpts
+  -- Zoho returns %20 in message IDs but REST API expects _ in URL paths
+  -- Normalize here at the parsing boundary to avoid double-encoding issues
+  parseJSON = withText "MessageId" $ \t ->
+    pure $ MessageId $ T.replace "%20" "_" t
 
 instance ToJSON MessageId where
   toJSON = genericToJSON jsonOpts
