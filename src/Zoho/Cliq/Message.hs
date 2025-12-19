@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -12,8 +13,10 @@ module Zoho.Cliq.Message
   , UserId(..)
   , MessageType(..)
   , MessageSender(..)
-  , MessageContent(..)
-  , Message(..)
+  , MessageContentPoly(..)
+  , MessageContent
+  , MessagePoly(..)
+  , Message
   , PostMessageReq(..)
   , PostMessageResponse(..)
   , EditMessageReq(..)
@@ -48,6 +51,8 @@ module Zoho.Cliq.Message
 
   -- * Utilities
   , escapeExclamation
+  , msToUTCTime
+  , utcTimeToMs
   ) where
 
 import Control.Lens.TH (abbreviatedFields, makeLensesWith)
@@ -61,7 +66,8 @@ import qualified Data.HashMap.Strict as HM
 import Data.String.Conv (toS)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time.Clock.POSIX (POSIXTime)
+import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import GHC.Generics
 import Network.HTTP.Client (Request)
 import qualified URI.ByteString as U
@@ -69,6 +75,18 @@ import Zoho.Cliq.Channel
 import Zoho.Types (Error, ResponseWrapper, zohoPrefixTyp, unwrapResponse)
 import qualified Zoho.OAuth as ZO
 import qualified Zoho.ZohoM as ZM
+
+-- | Convert milliseconds (as Integer) to UTCTime
+-- Zoho Cliq API returns timestamps in milliseconds since Unix epoch
+msToUTCTime :: Integer -> UTCTime
+msToUTCTime ms = posixSecondsToUTCTime (fromIntegral ms / 1000)
+
+-- | Convert UTCTime to milliseconds (as Integer)
+-- For sending timestamps back to Zoho Cliq API
+utcTimeToMs :: UTCTime -> Integer
+utcTimeToMs utc =
+  let posix = realToFrac (utcTimeToPOSIXSeconds utc) :: Double
+  in round (posix * 1000)
 
 -- | JSON options for newtypes - unwraps unary records to raw values
 jsonOpts :: Options
@@ -137,36 +155,76 @@ instance ToJSON MessageSender where
 $(makeLensesWith abbreviatedFields ''MessageSender)
 
 -- | Message content (simplified - can be extended for file attachments)
-data MessageContent = MessageContent
+-- Polymorphic over time type to handle Zoho's milliseconds timestamps
+data MessageContentPoly time = MessageContent
   { contentText :: !(Maybe Text)
   , contentEdited :: !(Maybe Bool)        -- ^ True if message was edited
-  , contentEditedTime :: !(Maybe POSIXTime)  -- ^ Timestamp when message was last edited
+  , contentEditedTime :: !(Maybe time)    -- ^ Timestamp when message was last edited
   } deriving (Eq, Show, Generic)
 
-instance FromJSON MessageContent where
+-- | MessageContent with properly converted UTCTime timestamps
+type MessageContent = MessageContentPoly UTCTime
+
+-- | Parse as Integer (milliseconds), convert to UTCTime
+instance FromJSON (MessageContentPoly UTCTime) where
+  parseJSON v = convertTimes <$> genericParseJSON (zohoPrefixTyp Casing.snakeCase) v
+    where
+      convertTimes :: MessageContentPoly Integer -> MessageContentPoly UTCTime
+      convertTimes mc = mc { contentEditedTime = msToUTCTime <$> contentEditedTime mc }
+
+instance FromJSON (MessageContentPoly Integer) where
   parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
-instance ToJSON MessageContent where
+instance ToJSON (MessageContentPoly UTCTime) where
+  toJSON mc = genericToJSON (zohoPrefixTyp Casing.snakeCase) $
+    mc { contentEditedTime = utcTimeToMs <$> contentEditedTime mc }
+
+instance ToJSON (MessageContentPoly Integer) where
   toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
 
-$(makeLensesWith abbreviatedFields ''MessageContent)
+$(makeLensesWith abbreviatedFields ''MessageContentPoly)
 
 -- | A message in a chat/channel
-data Message = Message
+-- Polymorphic over time type to handle Zoho's milliseconds timestamps
+data MessagePoly time = Message
   { messageSender :: !(Maybe MessageSender)
   , messageId :: !(Maybe MessageId)
-  , messageTime :: !(Maybe POSIXTime)
-  , messageTyp :: !(Maybe MessageType)  -- 'Typ' will be converted to 'type' by zohoPrefixTyp
-  , messageContent :: !(Maybe MessageContent)
+  , messageTime :: !(Maybe time)          -- ^ Zoho returns milliseconds, converted to UTCTime
+  , messageTyp :: !(Maybe MessageType)    -- ^ 'Typ' will be converted to 'type' by zohoPrefixTyp
+  , messageContent :: !(Maybe (MessageContentPoly time))
   } deriving (Eq, Show, Generic)
 
-instance FromJSON Message where
+-- | Message with properly converted UTCTime timestamps
+type Message = MessagePoly UTCTime
+
+-- | Parse as Integer (milliseconds), convert to UTCTime
+instance FromJSON (MessagePoly UTCTime) where
+  parseJSON v = convertTimes <$> genericParseJSON (zohoPrefixTyp Casing.snakeCase) v
+    where
+      convertTimes :: MessagePoly Integer -> MessagePoly UTCTime
+      convertTimes msg = msg
+        { messageTime = msToUTCTime <$> messageTime msg
+        , messageContent = convertContentTimes <$> messageContent msg
+        }
+      convertContentTimes :: MessageContentPoly Integer -> MessageContentPoly UTCTime
+      convertContentTimes mc = mc { contentEditedTime = msToUTCTime <$> contentEditedTime mc }
+
+instance FromJSON (MessagePoly Integer) where
   parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
-instance ToJSON Message where
+instance ToJSON (MessagePoly UTCTime) where
+  toJSON msg = genericToJSON (zohoPrefixTyp Casing.snakeCase) $
+    msg { messageTime = utcTimeToMs <$> messageTime msg
+        , messageContent = convertContentTimes <$> messageContent msg
+        }
+    where
+      convertContentTimes :: MessageContentPoly UTCTime -> MessageContentPoly Integer
+      convertContentTimes mc = mc { contentEditedTime = utcTimeToMs <$> contentEditedTime mc }
+
+instance ToJSON (MessagePoly Integer) where
   toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
 
-$(makeLensesWith abbreviatedFields ''Message)
+$(makeLensesWith abbreviatedFields ''MessagePoly)
 
 -- | Options for getting messages
 data GetMessagesOptions = GetMessagesOptions
