@@ -30,9 +30,34 @@ module Zoho.Cliq.Message
   , CliqForm(..)
   , CliqBanner(..)
 
+  -- * Slide Types
+  , CliqSlide(..)
+  , CliqSlideTable(..)
+  , CliqSlideTableStyles(..)
+  , CliqSlideTableSticky(..)
+  , CliqSlideFields(..)
+  , CliqSlideList(..)
+  , CliqSlideListStyles(..)
+  , CliqListBulletStyle(..)
+  , CliqSlideLabel(..)
+  , CliqSlideImages(..)
+  , CliqSlideChart(..)
+  , CliqSlideChartStyles(..)
+  , CliqChartPreview(..)
+  , CliqSlideChartItem(..)
+  , CliqSlideGraph(..)
+  , CliqSlideGraphStyles(..)
+  , CliqGraphPreview(..)
+  , CliqSlideGraphAxis(..)
+  , CliqSlideGraphDataPoint(..)
+  , CliqSlideGraphValue(..)
+  , CliqSlideText(..)
+
   -- * Smart Constructors
   , textMessage
   , textWithButtons
+  , textWithSlides
+  , slidesToValue
   , toPostMessageReq
 
   -- * Re-exports from Zoho.Cliq.Channel
@@ -57,6 +82,8 @@ module Zoho.Cliq.Message
 
 import Control.Lens.TH (abbreviatedFields, makeLensesWith)
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KM
 import Data.Aeson.Types (Object)
 import qualified Data.Aeson.Casing as Casing
 import Data.ByteString (ByteString)
@@ -64,6 +91,7 @@ import qualified Data.ByteString as BS
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.String.Conv (toS)
+import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (UTCTime)
@@ -72,7 +100,7 @@ import GHC.Generics
 import Network.HTTP.Client (Request)
 import qualified URI.ByteString as U
 import Zoho.Cliq.Channel
-import Zoho.Types (Error, ResponseWrapper, zohoPrefixTyp, unwrapResponse)
+import Zoho.Types (Error, ResponseWrapper, zohoPrefix, zohoPrefixTyp, unwrapResponse)
 import qualified Zoho.OAuth as ZO
 import qualified Zoho.ZohoM as ZM
 
@@ -91,6 +119,11 @@ utcTimeToMs utc =
 -- | JSON options for newtypes - unwraps unary records to raw values
 jsonOpts :: Options
 jsonOpts = defaultOptions { unwrapUnaryRecords = True }
+
+-- | Add a "type" field to a JSON object (used for slide discriminators)
+addTypeField :: Text -> Value -> Value
+addTypeField t (Object o) = Object $ KM.insert "type" (String t) o
+addTypeField _ v = v
 
 -- | Chat identifier
 newtype ChatId = ChatId { rawChatId :: Text }
@@ -291,6 +324,268 @@ instance ToJSON CliqBanner where
 
 $(makeLensesWith abbreviatedFields ''CliqBanner)
 
+-- ============================================================================
+-- Slide Types
+-- ============================================================================
+
+-- | Table slide - display data in rows and columns.
+--
+-- Per REST API: https://www.zoho.com/cliq/help/restapi/v2/#attaching_content
+data CliqSlideTable = CliqSlideTable
+  { tableTitle :: !(Maybe Text)               -- ^ Table title (optional)
+  , tableHeaders :: ![Text]                   -- ^ Column headers. Max 10, 30 chars each.
+  , tableRows :: ![[Text]]                    -- ^ Row data. Max 100 rows, 100 chars/cell.
+  , tableStyles :: !(Maybe CliqSlideTableStyles) -- ^ Optional styling (width, sticky)
+  } deriving (Eq, Show, Generic)
+
+-- | Table styles. Key is @"styles"@ (plural), not @"style"@.
+data CliqSlideTableStyles = CliqSlideTableStyles
+  { stylesWidth :: !(Maybe [Int])            -- ^ Column width %. Length = headers, sum = 100.
+  , stylesSticky :: !(Maybe CliqSlideTableSticky) -- ^ Freeze rows/columns
+  } deriving (Eq, Show, Generic)
+
+-- | Sticky (freeze) configuration for table rows/columns.
+data CliqSlideTableSticky = CliqSlideTableSticky
+  { stickyRows :: !(Maybe Int)    -- ^ Rows to freeze. Range: 0-2.
+  , stickyColumns :: !(Maybe Int) -- ^ Columns to freeze. Range: 0-2.
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideTableSticky where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+instance ToJSON CliqSlideTableStyles where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+instance ToJSON CliqSlideTable where
+  toJSON CliqSlideTable{..} = object $ catMaybes
+    [ ("title" .=) <$> tableTitle
+    -- Cliq expects headers/rows inside a nested "data" object
+    -- Rows are objects with header names as keys
+    , Just $ "data" .= object
+        [ "headers" .= tableHeaders
+        , "rows" .= map (HM.fromList . zip tableHeaders) tableRows
+        ]
+    , ("styles" .=) <$> tableStyles
+    ]
+
+-- | Fields slide - display key-value pairs (similar to label but without title)
+-- NOTE: "fields" type may not be officially supported - consider using "label" instead
+-- Max 10 elements
+data CliqSlideFields = CliqSlideFields
+  { fieldsData :: ![(Text, Text)]               -- ^ Key-value pairs (max 10)
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideFields where
+  toJSON CliqSlideFields{..} = object
+    [ "data" .= map (\(k, v) -> object [Key.fromText k .= v]) fieldsData
+    ]
+
+-- | List slide - display items as a bulleted/numbered list.
+--
+-- Per REST API: https://www.zoho.com/cliq/help/restapi/v2/#attaching_content
+--
+-- __WARNING:__ Styles do NOT render for REST API (Dec 2025). Kept for future compatibility.
+data CliqSlideList = CliqSlideList
+  { listTitle :: !Text                         -- ^ List title
+  , listData :: ![Text]                        -- ^ List items
+  , listStyles :: !(Maybe CliqSlideListStyles) -- ^ Bullet style (WARNING: doesn't render)
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideList where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | List styles - customize bullet appearance. WARNING: doesn't render for REST API.
+data CliqSlideListStyles = CliqSlideListStyles
+  { stylesType :: !CliqListBulletStyle  -- ^ Bullet/numbering style
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideListStyles where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | Bullet style for list slides.
+--
+-- __WARNING:__ As of Dec 2025, these styles do NOT render for REST API messages.
+-- Kept for API spec compliance and future compatibility.
+data CliqListBulletStyle
+  = ListStyleCircle       -- ^ @circle@ - hollow circle
+  | ListStyleDecimal      -- ^ @decimal@ - 1, 2, 3...
+  | ListStyleDisc         -- ^ @disc@ - filled circle (default)
+  | ListStyleLowerAlpha   -- ^ @lower-alpha@ - a, b, c...
+  | ListStyleUpperAlpha   -- ^ @upper-alpha@ - A, B, C...
+  | ListStyleSquare       -- ^ @square@ - filled square
+  | ListStyleLowerRoman   -- ^ @lower-roman@ - i, ii, iii...
+  | ListStyleUpperRoman   -- ^ @upper-roman@ - I, II, III...
+  deriving (Eq, Show, Generic, Bounded, Enum)
+
+instance ToJSON CliqListBulletStyle where
+  toJSON = genericToJSON $ defaultOptions
+    { constructorTagModifier = camelTo2 '-' . drop (length ("ListStyle" :: String))
+    }
+
+-- | Label slide - display key-value pairs with a title. Values support markdown links.
+--
+-- Per REST API: https://www.zoho.com/cliq/help/restapi/v2/#attaching_content
+data CliqSlideLabel = CliqSlideLabel
+  { labelTitle :: !Text          -- ^ Label title
+  , labelData :: ![(Text, Text)] -- ^ Key-value pairs (values support markdown links)
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideLabel where
+  toJSON CliqSlideLabel{..} = object
+    [ "title" .= labelTitle
+    , "data" .= map (\(k, v) -> object [Key.fromText k .= v]) labelData
+    ]
+
+-- | Images slide - display images in a slider.
+--
+-- Per REST API: https://www.zoho.com/cliq/help/restapi/v2/#attaching_content
+data CliqSlideImages = CliqSlideImages
+  { imagesTitle :: !(Maybe Text) -- ^ Image slider title
+  , imagesData :: ![Text]        -- ^ Image URLs
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideImages where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | Percentage chart slide - pie/doughnut charts.
+--
+-- Per REST API: https://www.zoho.com/cliq/help/restapi/v2/#attaching_content
+data CliqSlideChart = CliqSlideChart
+  { chartStyles :: !(Maybe CliqSlideChartStyles) -- ^ Visual style (pie, doughnut, semi_doughnut)
+  , chartData :: ![CliqSlideChartItem]           -- ^ Chart segments. Max 5 items.
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideChart where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | Chart styles.
+data CliqSlideChartStyles = CliqSlideChartStyles
+  { stylesPreview :: !CliqChartPreview -- ^ Chart visualization style
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideChartStyles where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | Chart preview/visualization style.
+data CliqChartPreview
+  = ChartPreviewPie           -- ^ @pie@ - standard pie chart
+  | ChartPreviewDoughnut      -- ^ @doughnut@ - ring chart with hole
+  | ChartPreviewSemiDoughnut  -- ^ @semi_doughnut@ - half ring chart
+  deriving (Eq, Show, Generic, Bounded, Enum)
+
+instance ToJSON CliqChartPreview where
+  toJSON = genericToJSON $ defaultOptions
+    { constructorTagModifier = camelTo2 '_' . drop (length ("ChartPreview" :: String))
+    }
+
+-- | Chart data item (segment).
+data CliqSlideChartItem = CliqSlideChartItem
+  { chartLabel :: !Text   -- ^ Segment label. Max 20 characters.
+  , chartValue :: !Double -- ^ Segment value (float).
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideChartItem where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | Graph slide - bar charts and trend lines.
+--
+-- Per REST API: https://www.zoho.com/cliq/help/restapi/v2/#attaching_content
+--
+-- Note: This is different from 'CliqSlideChart' (percentage_chart) which is for
+-- pie/doughnut charts. Graph is for bar charts and trend lines.
+data CliqSlideGraph = CliqSlideGraph
+  { graphStyles :: !(Maybe CliqSlideGraphStyles) -- ^ Visual style and axis config
+  , graphData :: ![CliqSlideGraphDataPoint]      -- ^ Data categories. Max 5.
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideGraph where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | Graph styles - preview type and axis labels.
+data CliqSlideGraphStyles = CliqSlideGraphStyles
+  { stylesPreview :: !CliqGraphPreview             -- ^ Graph visualization style
+  , stylesXAxis :: !(Maybe CliqSlideGraphAxis)     -- ^ X-axis config (horizontal)
+  , stylesYAxis :: !(Maybe CliqSlideGraphAxis)     -- ^ Y-axis config (vertical)
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideGraphStyles where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | Graph preview/visualization style.
+data CliqGraphPreview
+  = GraphPreviewVerticalBar        -- ^ @vertical_bar@ - standard vertical bar chart
+  | GraphPreviewVerticalStackedBar -- ^ @vertical_stacked_bar@ - stacked vertical bar chart
+  | GraphPreviewTrend              -- ^ @trend@ - line/trend chart
+  deriving (Eq, Show, Generic, Bounded, Enum)
+
+instance ToJSON CliqGraphPreview where
+  toJSON = genericToJSON $ defaultOptions
+    { constructorTagModifier = camelTo2 '_' . drop (length ("GraphPreview" :: String))
+    }
+
+-- | Axis configuration for graph.
+data CliqSlideGraphAxis = CliqSlideGraphAxis
+  { axisTitle :: !Text  -- ^ Axis title. Max 20 characters.
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideGraphAxis where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | Data point (category) for graph.
+data CliqSlideGraphDataPoint = CliqSlideGraphDataPoint
+  { dataCategory :: !Text             -- ^ Category name. Max 20 characters.
+  , dataValues :: ![CliqSlideGraphValue]  -- ^ Data values. Max 20 items.
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideGraphDataPoint where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | Individual value within a graph data point.
+data CliqSlideGraphValue = CliqSlideGraphValue
+  { valueLabel :: !Text   -- ^ Label. Max 20 characters.
+  , valueValue :: !Double -- ^ Numeric value (float).
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideGraphValue where
+  toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
+
+-- | Text slide - markdown text content
+-- Max 500 chars
+data CliqSlideText = CliqSlideText
+  { textData :: !Text  -- ^ Text content (max 500 chars, markdown supported)
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlideText where
+  toJSON CliqSlideText{..} = object
+    [ "data" .= textData
+    ]
+
+-- | Union type for all slide types
+data CliqSlide
+  = SlideTable !CliqSlideTable
+  | SlideFields !CliqSlideFields
+  | SlideList !CliqSlideList
+  | SlideLabel !CliqSlideLabel
+  | SlideImages !CliqSlideImages
+  | SlideChart !CliqSlideChart       -- ^ Pie/doughnut charts (percentage_chart)
+  | SlideGraph !CliqSlideGraph       -- ^ Bar charts and trend lines (graph)
+  | SlideText !CliqSlideText
+  deriving (Eq, Show, Generic)
+
+instance ToJSON CliqSlide where
+  toJSON (SlideTable t) = addTypeField "table" $ toJSON t
+  toJSON (SlideFields f) = addTypeField "fields" $ toJSON f
+  toJSON (SlideList l) = addTypeField "list" $ toJSON l
+  toJSON (SlideLabel l) = addTypeField "label" $ toJSON l
+  toJSON (SlideImages i) = addTypeField "images" $ toJSON i
+  toJSON (SlideChart c) = addTypeField "percentage_chart" $ toJSON c
+  toJSON (SlideGraph g) = addTypeField "graph" $ toJSON g
+  toJSON (SlideText t) = addTypeField "text" $ toJSON t
+
+-- ============================================================================
+-- End Slide Types
+-- ============================================================================
+
 -- | Standard Cliq message where all fields can coexist
 -- Any combination of text, card, slides, buttons, and suggestions is valid
 data CliqStandardMessage = CliqStandardMessage
@@ -352,6 +647,20 @@ textWithButtons txt btns = CliqStandard $ CliqStandardMessage
   , csmButtons = Just btns
   , csmSuggestions = Nothing
   }
+
+-- | Smart constructor: Create a message with text and slides
+textWithSlides :: Text -> [CliqSlide] -> CliqMessage
+textWithSlides txt slides = CliqStandard $ CliqStandardMessage
+  { csmText = Just txt
+  , csmCard = Nothing
+  , csmSlides = Just $ slidesToValue slides
+  , csmButtons = Nothing
+  , csmSuggestions = Nothing
+  }
+
+-- | Convert a list of slides to a JSON Value for use with csmSlides
+slidesToValue :: [CliqSlide] -> Value
+slidesToValue = toJSON
 
 -- | Request body for posting a message via REST API
 -- See: docs/ZOHO-CLIQ.md for full documentation
