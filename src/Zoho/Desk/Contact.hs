@@ -69,7 +69,7 @@ data Contact cf = Contact
   , contactDescription :: !(Maybe Text)
   , contactTitle :: !(Maybe Text)
   , contactTyp :: !(Maybe Text) -- TODO
-  , contactOwnerId :: !(Maybe Text) -- TODO
+  , contactOwnerId :: !(Maybe AgentId)
   , contactOwner :: !(Maybe Aeson.Value) -- TODO
   , contactAccountId :: !(Maybe Text)
   , contatZohoCRMContact :: !(Maybe Aeson.Value) -- TODO

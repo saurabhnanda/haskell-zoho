@@ -23,7 +23,7 @@ import Control.Monad (join)
 import Text.Read (readMaybe)
 import Network.HTTP.Types as HT
 import Zoho.Types
-import Zoho.Desk.Common (CategoryId, ArticleId, AuthorId, TranslationId, DepartmentId)
+import Zoho.Desk.Common (CategoryId, ArticleId, TranslationId, DepartmentId, AgentId)
 
 -- | User object (used for author, owner, etc.)
 data ArticleUser = ArticleUser
@@ -69,9 +69,9 @@ data Article = Article
   , articleCreatedTime :: !(Maybe UTCTime)
   , articleModifiedTime :: !(Maybe UTCTime)
   , articleAuthor :: !(Maybe ArticleUser)
-  , articleAuthorId :: !(Maybe AuthorId)
+  , articleAuthorId :: !(Maybe AgentId)
   , articleOwner :: !(Maybe ArticleUser)
-  , articleOwnerId :: !(Maybe AuthorId)
+  , articleOwnerId :: !(Maybe AgentId)
   , articleCreatedBy :: !(Maybe ArticleUser)
   , articleModifiedBy :: !(Maybe ArticleUser)
   , articleTags :: !(Maybe [Text])

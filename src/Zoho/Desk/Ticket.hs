@@ -37,7 +37,7 @@ data TicketPoly stringInt ticketCf contactCf = Ticket
   , ticketPhone :: !(Maybe Text)
   , ticketDescription :: !(Maybe Text)
   , ticketStatus :: !(Maybe Text)
-  , ticketAssigneeId :: !(Maybe AssigneeId)
+  , ticketAssigneeId :: !(Maybe AgentId)
   , ticketCategory :: !(Maybe Text)
   , ticketSubCategory :: !(Maybe Text)
   , ticketResolution :: !(Maybe Text)
@@ -214,7 +214,7 @@ data SearchOptions = SearchOptions
   , soptsPhone :: !(Maybe Text)
   , soptsChannel :: !(Maybe Text)
   , soptsCategory :: !(Maybe Text)
-  , soptsAssigneeId :: !(Maybe AssigneeId)
+  , soptsAssigneeId :: !(Maybe AgentId)
   , soptsContactId :: !(Maybe ContactId)
   , soptsAccountId :: !(Maybe AccountId)
   , soptsProductId :: !(Maybe ProductId)
@@ -269,7 +269,7 @@ searchRequest oid opts@SearchOptions{..} =
       applyOptionalQueryParam "productId" soptsProductId $
       applyOptionalQueryParam "accountId" soptsAccountId $
       applyOptionalQueryParam "contactId" soptsContactId $
-      applyOptionalQueryParam "assigneeId" soptsAssigneeId $
+      applyOptionalQueryParam "assigneeId" (rawAgentId <$> soptsAssigneeId) $
       applyOptionalQueryParam "category" soptsCategory $
       applyOptionalQueryParam "channel" soptsChannel $
       applyOptionalQueryParam "phone" soptsPhone $

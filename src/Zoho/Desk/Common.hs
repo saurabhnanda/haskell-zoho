@@ -52,15 +52,32 @@ type DepartmentId = Text
 type ContactId = Text
 type ProductId = Text
 type AccountId = Text
-type AssigneeId = Text
 type TeamId = Text
 type ViewId = Text
 type ArticleId = Text
 type CategoryId = Text
-type AuthorId = Text
 type TranslationId = Text
-type AgentId = Text
-type AgentZuid = Text
+-- | Zoho Desk internal agent ID (e.g., "1892000000056096")
+-- Used for ticket assigneeId and other Desk-internal references
+newtype AgentId = AgentId { rawAgentId :: Text }
+  deriving (Eq, Show, Ord)
+
+instance ToJSON AgentId where
+  toJSON (AgentId t) = toJSON t
+
+instance FromJSON AgentId where
+  parseJSON = fmap AgentId . parseJSON
+
+-- | Zoho-wide user ID (e.g., "10687231")
+-- Used for @mentions in conversations and cross-Zoho-app user references
+newtype AgentZuid = AgentZuid { rawAgentZuid :: Text }
+  deriving (Eq, Show, Ord)
+
+instance ToJSON AgentZuid where
+  toJSON (AgentZuid t) = toJSON t
+
+instance FromJSON AgentZuid where
+  parseJSON = fmap AgentZuid . parseJSON
 type RoleId = Text
 type ProfileId = Text
 type TagId = Text

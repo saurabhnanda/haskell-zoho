@@ -167,8 +167,8 @@ list options orgId = do
   pure $ fmap unwrapResponse x
 
 getRequest :: OrgId -> AgentId -> [Text] -> Request
-getRequest orgId agentId includes = 
-  ZO.prepareGet (Common.mkApiEndpoint ("/agents/" <> toS agentId)) params [Common.orgIdHeader orgId]
+getRequest orgId agentId includes =
+  ZO.prepareGet (Common.mkApiEndpoint ("/agents/" <> toS (rawAgentId agentId))) params [Common.orgIdHeader orgId]
   where
     params = case includes of
       [] -> []
