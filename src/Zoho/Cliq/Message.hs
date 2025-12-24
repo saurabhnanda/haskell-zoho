@@ -35,6 +35,7 @@ module Zoho.Cliq.Message
   , CliqSlideTable(..)
   , CliqSlideTableStyles(..)
   , CliqSlideTableSticky(..)
+  , CliqTextAlign(..)
   , CliqSlideFields(..)
   , CliqSlideList(..)
   , CliqSlideListStyles(..)
@@ -100,7 +101,7 @@ import GHC.Generics
 import Network.HTTP.Client (Request)
 import qualified URI.ByteString as U
 import Zoho.Cliq.Channel
-import Zoho.Types (Error, ResponseWrapper, zohoPrefix, zohoPrefixTyp, unwrapResponse)
+import Zoho.Types (Error, ResponseWrapper, zohoPrefix, zohoPrefixTyp, unwrapResponse, unsafeMergeObjects)
 import qualified Zoho.OAuth as ZO
 import qualified Zoho.ZohoM as ZM
 
@@ -342,6 +343,7 @@ data CliqSlideTable = CliqSlideTable
 data CliqSlideTableStyles = CliqSlideTableStyles
   { stylesWidth :: !(Maybe [Int])            -- ^ Column width %. Length = headers, sum = 100.
   , stylesSticky :: !(Maybe CliqSlideTableSticky) -- ^ Freeze rows/columns
+  , stylesTextAlign :: !(Maybe [CliqTextAlign])   -- ^ Column text alignment. Length = headers.
   } deriving (Eq, Show, Generic)
 
 -- | Sticky (freeze) configuration for table rows/columns.
@@ -349,6 +351,20 @@ data CliqSlideTableSticky = CliqSlideTableSticky
   { stickyRows :: !(Maybe Int)    -- ^ Rows to freeze. Range: 0-2.
   , stickyColumns :: !(Maybe Int) -- ^ Columns to freeze. Range: 0-2.
   } deriving (Eq, Show, Generic)
+
+-- | Text alignment for table columns.
+--
+-- __Note:__ This is undocumented in Zoho Cliq API but works in practice (tested Dec 2024).
+data CliqTextAlign
+  = TextAlignLeft    -- ^ @left@ - Left-aligned text
+  | TextAlignCenter  -- ^ @center@ - Center-aligned text
+  | TextAlignRight   -- ^ @right@ - Right-aligned text
+  deriving (Eq, Show, Generic, Bounded, Enum)
+
+instance ToJSON CliqTextAlign where
+  toJSON = genericToJSON $ defaultOptions
+    { constructorTagModifier = camelTo2 '_' . drop (length ("TextAlign" :: String))
+    }
 
 instance ToJSON CliqSlideTableSticky where
   toJSON = genericToJSON $ zohoPrefix Casing.snakeCase
@@ -707,14 +723,18 @@ data PostMessageResponse = PostMessageResponse
 instance FromJSON PostMessageResponse where
   parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
--- | Request body for editing a message
+-- | Request body for editing a message.
+-- Supports full rich content (text, slides, buttons) just like posting.
 data EditMessageReq = EditMessageReq
-  { editText :: !Text
+  { editMsgContent :: !CliqMessage
   , editNotifyEdit :: !(Maybe Bool)
   } deriving (Eq, Show, Generic)
 
+-- | Flatten CliqMessage fields into the request body (same pattern as PostMessageReq).
 instance ToJSON EditMessageReq where
-  toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
+  toJSON EditMessageReq{..} =
+    let extraFields = object $ maybe [] (\x -> ["notify_edit" .= x]) editNotifyEdit
+    in unsafeMergeObjects (toJSON editMsgContent) extraFields
 
 $(makeLensesWith abbreviatedFields ''EditMessageReq)
 
@@ -821,13 +841,18 @@ editMessageRequest cid mid editReq =
   let endpoint = mkCliqEndpoint $ "/chats/" <> toS (rawChatId cid) <> "/messages/" <> toS (rawMessageId mid)
   in ZO.prepareJSONPut endpoint [] [] editReq
 
--- | Edit a message
+-- | Edit a message with full CliqMessage content (text, slides, buttons).
+-- Set notifyEdit to True to show "edited" indicator in Cliq UI.
+-- Returns Nothing on success (empty response), Just Value if response body present.
 editMessage :: (ZM.HasZoho m)
             => ChatId
             -> MessageId
-            -> EditMessageReq
-            -> m (Either Error Value)
-editMessage cid mid editReq = ZM.runRequestAndParseResponse $ editMessageRequest cid mid editReq
+            -> Maybe Bool  -- ^ notify_edit flag
+            -> CliqMessage
+            -> m (Either Error (Maybe Value))
+editMessage cid mid mNotify msg =
+  let editReq = EditMessageReq { editMsgContent = msg, editNotifyEdit = mNotify }
+  in ZM.runRequestAndParseOptionalResponse Nothing Just $ editMessageRequest cid mid editReq
 
 -- | Delete a message - Request builder
 deleteMessageRequest :: ChatId -> MessageId -> Request
