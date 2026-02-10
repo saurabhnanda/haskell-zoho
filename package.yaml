@@ -95,6 +95,7 @@ library:
     - Zoho.Desk.Conversation
     - Zoho.Desk.Agent
     - Zoho.Desk.Article
+    - Zoho.Desk.KbCategory
     - Zoho.CRM.Common.Utils
     - Zoho.Cliq.Common
     - Zoho.Cliq.Channel
