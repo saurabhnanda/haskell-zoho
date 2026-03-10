@@ -2,6 +2,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -15,6 +16,7 @@ module Zoho.Cliq.Message
   , MessageSender(..)
   , MessageContentPoly(..)
   , MessageContent
+  , RepliedTo(..)
   , MessagePoly(..)
   , Message
   , PostMessageReq(..)
@@ -65,6 +67,7 @@ module Zoho.Cliq.Message
   , module Zoho.Cliq.Channel
 
   -- * API Functions
+  , getMessagesRequest
   , getMessages
   , getMessage
   , postMessageToChannel
@@ -74,6 +77,13 @@ module Zoho.Cliq.Message
   , editMessage
   , deleteMessage
   , getReactions
+
+  -- * File Operations
+  , FileId(..)
+  , CliqFileInfo(..)
+  , downloadFile
+  , shareFileToChannel
+  , shareFileToChat
 
   -- * Utilities
   , escapeExclamation
@@ -97,8 +107,13 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Control.Monad.IO.Class (liftIO)
 import GHC.Generics
-import Network.HTTP.Client (Request)
+import Network.HTTP.Client (Request, Response)
+import qualified Network.HTTP.Client as HC
+import Network.HTTP.Client.MultipartFormData (partFileRequestBody)
+import qualified Network.HTTP.Client.MultipartFormData as Multi
+import qualified Data.ByteString.Lazy as BSL
 import qualified URI.ByteString as U
 import Zoho.Cliq.Channel
 import Zoho.Types (Error, ResponseWrapper, zohoPrefix, zohoPrefixTyp, unwrapResponse, unsafeMergeObjects)
@@ -188,12 +203,31 @@ instance ToJSON MessageSender where
 
 $(makeLensesWith abbreviatedFields ''MessageSender)
 
--- | Message content (simplified - can be extended for file attachments)
--- Polymorphic over time type to handle Zoho's milliseconds timestamps
+-- | Unique identifier for a file attachment in Cliq.
+newtype FileId = FileId { rawFileId :: Text }
+  deriving (Eq, Show, Generic, ToJSON, FromJSON)
+
+-- | File metadata in a Cliq file message
+data CliqFileInfo = CliqFileInfo
+  { cfiName :: !Text           -- ^ file name (e.g. "photo.png")
+  , cfiTyp :: !Text            -- ^ MIME type (e.g. "image/png")
+  , cfiId :: !FileId           -- ^ Cliq file ID (for downloading via GET /files/{id})
+  } deriving (Eq, Show, Generic)
+
+instance FromJSON CliqFileInfo where
+  parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
+
+instance ToJSON CliqFileInfo where
+  toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
+
+-- | Message content — covers both text and file messages.
+-- Polymorphic over time type to handle Zoho's milliseconds timestamps.
 data MessageContentPoly time = MessageContent
   { contentText :: !(Maybe Text)
   , contentEdited :: !(Maybe Bool)        -- ^ True if message was edited
   , contentEditedTime :: !(Maybe time)    -- ^ Timestamp when message was last edited
+  , contentFile :: !(Maybe CliqFileInfo)  -- ^ File metadata (present for file messages)
+  , contentComment :: !(Maybe Text)       -- ^ Comment/caption on a file message
   } deriving (Eq, Show, Generic)
 
 -- | MessageContent with properly converted UTCTime timestamps
@@ -218,6 +252,23 @@ instance ToJSON (MessageContentPoly Integer) where
 
 $(makeLensesWith abbreviatedFields ''MessageContentPoly)
 
+-- | Reply context — present when a message is a reply to another message.
+-- Returned by getMessages/getMessage API but NOT by bot webhook.
+data RepliedTo = RepliedTo
+  { rtId :: !(Maybe MessageId)           -- ^ Original message ID (URL-encoded %20 → _ by MessageId FromJSON)
+  , rtSender :: !(Maybe MessageSender)
+  , rtTime :: !(Maybe Integer)           -- ^ Milliseconds timestamp
+  , rtTyp :: !(Maybe MessageType)
+  } deriving (Eq, Show, Generic)
+
+instance FromJSON RepliedTo where
+  parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
+
+instance ToJSON RepliedTo where
+  toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
+
+$(makeLensesWith abbreviatedFields ''RepliedTo)
+
 -- | A message in a chat/channel
 -- Polymorphic over time type to handle Zoho's milliseconds timestamps
 data MessagePoly time = Message
@@ -226,6 +277,7 @@ data MessagePoly time = Message
   , messageTime :: !(Maybe time)          -- ^ Zoho returns milliseconds, converted to UTCTime
   , messageTyp :: !(Maybe MessageType)    -- ^ 'Typ' will be converted to 'type' by zohoPrefixTyp
   , messageContent :: !(Maybe (MessageContentPoly time))
+  , messageRepliedTo :: !(Maybe RepliedTo) -- ^ Present when message is a reply (from getMessages API)
   } deriving (Eq, Show, Generic)
 
 -- | Message with properly converted UTCTime timestamps
@@ -723,6 +775,9 @@ data PostMessageResponse = PostMessageResponse
 instance FromJSON PostMessageResponse where
   parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
+instance ToJSON PostMessageResponse where
+  toJSON = genericToJSON (zohoPrefixTyp Casing.snakeCase)
+
 -- | Request body for editing a message.
 -- Supports full rich content (text, slides, buttons) just like posting.
 data EditMessageReq = EditMessageReq
@@ -892,3 +947,80 @@ getReactions cid mid = do
 -- exclamation marks need to be escaped as \! to avoid "input_json_invalid" errors.
 escapeExclamation :: Text -> Text
 escapeExclamation = T.replace "!" "\\!"
+
+-- ============================================================================
+-- File operations
+-- ============================================================================
+
+-- | Download a file - Request builder.
+-- Endpoint: GET /api/v2/files/{FILE_ID}
+-- Required scope: ZohoCliq.Attachments.READ
+downloadFileRequest :: FileId -> Request
+downloadFileRequest fid =
+  let endpoint = mkCliqEndpoint $ "/files/" <> toS (rawFileId fid)
+  -- Apparently zoho cliq requires User-Agent to process the request, else it 
+  -- results in a 400 response
+  in ZO.prepareGet endpoint [] [("Accept", "*/*"), ("User-Agent", "haskell-zoho/1.0.0")]
+
+-- | Download a file by its ID. Returns the raw response (binary body + headers).
+-- Use responseBody to get the file bytes, responseHeaders for content-type etc.
+downloadFile :: (ZM.HasZoho m) => FileId -> m (Response BSL.ByteString)
+downloadFile fid = ZM.runRequest $ downloadFileRequest fid
+
+-- | Share a file to a channel - Request builder.
+-- Endpoint: POST /api/v2/channelsbyname/{CHANNEL_UNIQUE_NAME}/files
+-- Required scope: ZohoCliq.Webhooks.CREATE
+-- Note: Returns an IO action because formDataBody needs IO to generate multipart boundaries.
+shareFileToChannelRequest :: ChannelUniqueName -> Text -> BSL.ByteString -> Maybe Text -> IO Request
+shareFileToChannelRequest channelName fileName fileBytes mComment = do
+  let endpoint = mkCliqEndpoint $ "/channelsbyname/" <> toS (rawChannelUniqueName channelName) <> "/files"
+      baseReq = (ZO.prepareGet endpoint [] []) { HC.method = "POST" }
+      filePart = partFileRequestBody "file" (toS fileName) (HC.RequestBodyLBS fileBytes)
+      commentParts = case mComment of
+        Nothing -> []
+        -- Cliq expects "comments" as a JSON array of strings (one per file)
+        Just c -> [Multi.partBS "comments" (toS $ "[" <> encodeJsonText c <> "]")]
+  Multi.formDataBody (filePart : commentParts) baseReq
+
+-- | Share a file to a channel by channel unique name.
+-- Content-type of the file part is guessed from the filename extension.
+shareFileToChannel :: (ZM.HasZoho m)
+  => ChannelUniqueName
+  -> Text            -- ^ file name (e.g. "photo.jpg")
+  -> BSL.ByteString  -- ^ file contents
+  -> Maybe Text      -- ^ optional comment for the file
+  -> m (Response BSL.ByteString)
+shareFileToChannel channelName fileName fileBytes mComment = do
+  req <- liftIO $ shareFileToChannelRequest channelName fileName fileBytes mComment
+  ZM.runRequest req
+
+-- | Share a file to a chat - Request builder.
+-- Endpoint: POST /api/v2/chats/{CHAT_ID}/files
+-- Required scope: ZohoCliq.Webhooks.CREATE
+-- Note: Returns an IO action because formDataBody needs IO to generate multipart boundaries.
+shareFileToChatRequest :: ChatId -> Text -> BSL.ByteString -> Maybe Text -> IO Request
+shareFileToChatRequest cid fileName fileBytes mComment = do
+  let endpoint = mkCliqEndpoint $ "/chats/" <> toS (rawChatId cid) <> "/files"
+      baseReq = (ZO.prepareGet endpoint [] []) { HC.method = "POST" }
+      filePart = partFileRequestBody "file" (toS fileName) (HC.RequestBodyLBS fileBytes)
+      commentParts = case mComment of
+        Nothing -> []
+        Just c -> [Multi.partBS "comments" (toS $ "[" <> encodeJsonText c <> "]")]
+  Multi.formDataBody (filePart : commentParts) baseReq
+
+-- | Share a file to a chat by chat ID.
+-- Content-type of the file part is guessed from the filename extension.
+shareFileToChat :: (ZM.HasZoho m)
+  => ChatId
+  -> Text            -- ^ file name
+  -> BSL.ByteString  -- ^ file contents
+  -> Maybe Text      -- ^ optional comment for the file
+  -> m (Response BSL.ByteString)
+shareFileToChat cid fileName fileBytes mComment = do
+  req <- liftIO $ shareFileToChatRequest cid fileName fileBytes mComment
+  ZM.runRequest req
+
+-- | JSON-encode a Text value (adds quotes, escapes special chars)
+encodeJsonText :: Text -> Text
+encodeJsonText t = T.pack $ show t  -- show on Text produces valid JSON string with quotes
+  
