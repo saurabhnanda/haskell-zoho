@@ -176,7 +176,7 @@ data SearchOptions = SearchOptions
   , soptsPhone :: !(Maybe Text)
   , soptsMobile :: !(Maybe Text)
   , soptsAccountName :: !(Maybe Text)
-  , soptsAll :: !(Maybe Bool)
+  , soptsAll :: !(Maybe Text)
   , soptsCustomFields :: ![(ApiName, Text)]
   , soptsCreatedTimeRange :: !(Maybe (UTCTime, UTCTime))
   , soptsModifiedTimeRange :: !(Maybe (UTCTime, UTCTime))
@@ -220,6 +220,7 @@ searchRequest opts@SearchOptions{..} oid =
       applyOptionalQueryParam "phone" soptsPhone $
       applyOptionalQueryParam "mobile" soptsMobile $
       applyOptionalQueryParam "accountName" soptsAccountName $
+      applyOptionalQueryParam "_all" soptsAll $
       applyCustomFieldSearchParams opts $
       applyCommonSearchParams opts []
 
