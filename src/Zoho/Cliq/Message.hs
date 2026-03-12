@@ -77,6 +77,8 @@ module Zoho.Cliq.Message
   , editMessage
   , deleteMessage
   , getReactions
+  , addReaction
+  , deleteReaction
 
   -- * File Operations
   , FileId(..)
@@ -936,6 +938,46 @@ getReactions :: (ZM.HasZoho m)
 getReactions cid mid = do
   result :: Either Error (ResponseWrapper "data" (HashMap Text [Text])) <- ZM.runRequestAndParseResponse $ getReactionsRequest cid mid
   pure $ fmap unwrapResponse result
+
+-- | Add a reaction to a message - Request builder.
+-- Endpoint: POST /api/v2/chats/{CHAT_ID}/messages/{MESSAGE_ID}/reactions
+-- Required scope: ZohoCliq.messageactions.CREATE
+-- Body: {"emoji_code": ":smile:"} — accepts Zomoji shortcodes or Unicode emoji
+-- Returns 204 No Content on success.
+addReactionRequest :: ChatId -> MessageId -> Text -> Request
+addReactionRequest cid mid emojiCode =
+  let endpoint = mkCliqEndpoint $ "/chats/" <> toS (rawChatId cid) <> "/messages/" <> toS (rawMessageId mid) <> "/reactions"
+  in ZO.prepareJSONPost endpoint [] [] (object ["emoji_code" .= emojiCode])
+
+-- | Add a reaction to a message.
+-- Returns Nothing for 204 No Content (expected), Just Value if Zoho returns a body.
+addReaction :: (ZM.HasZoho m)
+            => ChatId
+            -> MessageId
+            -> Text  -- ^ Emoji code (Zomoji shortcode like ":smile:" or Unicode emoji)
+            -> m (Either Error (Maybe Value))
+addReaction cid mid emojiCode =
+  ZM.runRequestAndParseOptionalResponse Nothing Just $ addReactionRequest cid mid emojiCode
+
+-- | Delete a reaction from a message - Request builder.
+-- Endpoint: DELETE /api/v2/chats/{CHAT_ID}/messages/{MESSAGE_ID}/reactions
+-- Required scope: ZohoCliq.messageactions.DELETE
+-- Body: {"emoji_code": ":smile:"}
+-- Returns 204 No Content on success.
+deleteReactionRequest :: ChatId -> MessageId -> Text -> Request
+deleteReactionRequest cid mid emojiCode =
+  let endpoint = mkCliqEndpoint $ "/chats/" <> toS (rawChatId cid) <> "/messages/" <> toS (rawMessageId mid) <> "/reactions"
+  in ZO.prepareDelete endpoint [] [] (Just $ encode $ object ["emoji_code" .= emojiCode])
+
+-- | Delete a reaction from a message.
+-- Returns Nothing for 204 No Content (expected), Just Value if Zoho returns a body.
+deleteReaction :: (ZM.HasZoho m)
+               => ChatId
+               -> MessageId
+               -> Text  -- ^ Emoji code to remove
+               -> m (Either Error (Maybe Value))
+deleteReaction cid mid emojiCode =
+  ZM.runRequestAndParseOptionalResponse Nothing Just $ deleteReactionRequest cid mid emojiCode
 
 -- | Escape exclamation marks for Zoho Cliq message text
 --
