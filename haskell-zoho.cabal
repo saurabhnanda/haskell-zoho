@@ -60,6 +60,7 @@ library
       Zoho.Cliq.Common
       Zoho.Cliq.Channel
       Zoho.Cliq.Message
+      Zoho.Cliq.Form
   other-modules:
       Main
       Zoho.CRM.Modules

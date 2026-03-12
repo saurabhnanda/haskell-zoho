@@ -118,6 +118,7 @@ import qualified Network.HTTP.Client.MultipartFormData as Multi
 import qualified Data.ByteString.Lazy as BSL
 import qualified URI.ByteString as U
 import Zoho.Cliq.Channel
+import Zoho.Cliq.Form (FormField)
 import Zoho.Types (Error, ResponseWrapper, zohoPrefix, zohoPrefixTyp, unwrapResponse, unsafeMergeObjects)
 import qualified Zoho.OAuth as ZO
 import qualified Zoho.ZohoM as ZM
@@ -354,17 +355,33 @@ instance ToJSON CliqButton where
 
 $(makeLensesWith abbreviatedFields ''CliqButton)
 
--- | Form message (placeholder - will be expanded later)
+-- | A Cliq form definition. Rendered by Cliq as an interactive form dialog.
+--
+-- The @action@ field specifies which Form Function handles submission.
+-- Only @"invoke.function"@ is supported for forms.
 data CliqForm = CliqForm
-  { cfTitle :: !Text
-  , cfHint :: !(Maybe Text)
-  , cfName :: !Text
-  , cfButtonLabel :: !Text
-  , cfInputs :: !Value  -- TODO: add CliqFormInput type
+  { cfTitle :: !Text                       -- ^ form title
+  , cfName :: !Text                        -- ^ unique form name, max 50 chars
+  , cfHint :: !(Maybe Text)                -- ^ description shown below title
+  , cfButtonLabel :: !(Maybe Text)         -- ^ submit button label, default "Submit"
+  , cfTriggerOnCancel :: !(Maybe Bool)     -- ^ fire handler on cancel
+  , cfInputs :: ![FormField]              -- ^ form fields (max 25)
+  , cfAction :: !Text                      -- ^ Form Function name (serialized as {"type":"invoke.function","name":"..."})
   } deriving (Eq, Show, Generic)
 
 instance ToJSON CliqForm where
-  toJSON = genericToJSON $ zohoPrefixTyp Casing.snakeCase
+  toJSON CliqForm{..} = object $ catMaybes
+    [ Just $ "title" .= cfTitle
+    , Just $ "name" .= cfName
+    , ("hint" .=) <$> cfHint
+    , ("button_label" .=) <$> cfButtonLabel
+    , ("trigger_on_cancel" .=) <$> cfTriggerOnCancel
+    , Just $ "inputs" .= cfInputs
+    , Just $ "action" .= object
+        [ "type" .= ("invoke.function" :: Text)
+        , "name" .= cfAction
+        ]
+    ]
 
 $(makeLensesWith abbreviatedFields ''CliqForm)
 
@@ -684,10 +701,9 @@ data CliqMessage
 
 instance ToJSON CliqMessage where
   toJSON (CliqStandard msg) = toJSON msg
-  toJSON (CliqFormMessage form) = object
-    [ "type" .= ("form" :: Text)
-    , "form" .= form
-    ]
+  toJSON (CliqFormMessage form) = case toJSON form of
+    Object o -> Object $ KM.insert "type" "form" o
+    v -> v
   toJSON (CliqTransientMessage txt) = object
     [ "type" .= ("transient_message" :: Text)
     , "text" .= txt

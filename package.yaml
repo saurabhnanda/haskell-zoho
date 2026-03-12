@@ -97,6 +97,8 @@ library:
     - Zoho.Desk.Article
     - Zoho.Desk.KbCategory
     - Zoho.CRM.Common.Utils
+    - Zoho.Cliq.Command
     - Zoho.Cliq.Common
     - Zoho.Cliq.Channel
     - Zoho.Cliq.Message
+    - Zoho.Cliq.Form
