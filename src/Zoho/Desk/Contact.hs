@@ -346,3 +346,130 @@ updateMany :: (HasZoho m) => OrgId -> UpdateManyRequest -> m (Either Error Updat
 updateMany oid req =
   ZM.runRequestAndParseResponse $
   updateManyRequest oid req
+
+-- | Duplicate detection: list field values that have duplicates
+-- GET /api/v1/groupContactDuplicateValues?fieldName=email
+data DuplicateFieldName = DupFirstName
+                        | DupLastName
+                        | DupEmail
+                        | DupSecondaryEmail
+                        | DupPhone
+                        | DupFullName
+                        | DupBothEmail
+                        deriving (Eq, Show)
+
+duplicateFieldNameToText :: DuplicateFieldName -> Text
+duplicateFieldNameToText = \case
+  DupFirstName -> "firstName"
+  DupLastName -> "lastName"
+  DupEmail -> "email"
+  DupSecondaryEmail -> "secondaryEmail"
+  DupPhone -> "phone"
+  DupFullName -> "fullName"
+  DupBothEmail -> "bothEmail"
+
+data DuplicateListOptions = DuplicateListOptions
+  { dloFieldName :: !DuplicateFieldName
+  , dloFrom :: !(Maybe Int)
+  , dloLimit :: !(Maybe Int)
+  , dloSortBy :: !(Maybe Text)  -- "count" or "fieldValue"
+  , dloSwFieldValue :: !(Maybe Text)
+  } deriving (Eq, Show)
+
+data DuplicateValueEntry = DuplicateValueEntry
+  { dveCount :: !Int
+  , dveFieldValue :: !Text
+  } deriving (Eq, Show, Generic)
+
+instance FromJSON DuplicateValueEntry where
+  parseJSON = genericParseJSON (zohoPrefix Casing.camelCase)
+
+listDuplicateValuesRequest :: DuplicateListOptions -> OrgId -> Request
+listDuplicateValuesRequest DuplicateListOptions{..} oid =
+  ZO.prepareGet (Common.mkApiEndpoint "/groupContactDuplicateValues") params [Common.orgIdHeader oid]
+  where
+    params =
+      applyOptionalQueryParam "swFieldValue" dloSwFieldValue $
+      applyOptionalQueryParam "sortBy" dloSortBy $
+      applyOptionalQueryParam "limit" (show <$> dloLimit) $
+      applyOptionalQueryParam "from" (show <$> dloFrom)
+      [("fieldName", Just $ toS $ duplicateFieldNameToText dloFieldName)]
+
+listDuplicateValues :: (HasZoho m)
+                    => DuplicateListOptions
+                    -> OrgId
+                    -> m (Either Error [DuplicateValueEntry])
+listDuplicateValues opts oid = do
+  x :: Either Error (ResponseWrapper "data" [DuplicateValueEntry]) <-
+    ZM.runRequestAndParseOptionalResponse (ResponseWrapper []) Prelude.id $
+    listDuplicateValuesRequest opts oid
+  pure $ fmap unwrapResponse x
+
+-- | Duplicate detection: list full contact details for a duplicate group
+-- GET /api/v1/groupContacts?fieldName=email&fieldValues=jade@example.com
+data DuplicateGroupOptions = DuplicateGroupOptions
+  { dgoFieldName :: !DuplicateFieldName
+  , dgoFieldValues :: !Text  -- The actual duplicate value (e.g., email address)
+  , dgoFrom :: !(Maybe Int)
+  , dgoLimit :: !(Maybe Int)
+  , dgoSortBy :: !(Maybe Text)
+  } deriving (Eq, Show)
+
+data DuplicateGroup cf = DuplicateGroup
+  { dgFieldValue :: !Text
+  , dgContacts :: ![Contact cf]
+  } deriving (Eq, Show, Generic)
+
+instance (FromJSON cf) => FromJSON (DuplicateGroup cf) where
+  parseJSON = genericParseJSON (zohoPrefix Casing.camelCase)
+
+listDuplicateGroupRequest :: DuplicateGroupOptions -> OrgId -> Request
+listDuplicateGroupRequest DuplicateGroupOptions{..} oid =
+  ZO.prepareGet (Common.mkApiEndpoint "/groupContacts") params [Common.orgIdHeader oid]
+  where
+    params =
+      applyOptionalQueryParam "sortBy" dgoSortBy $
+      applyOptionalQueryParam "limit" (show <$> dgoLimit) $
+      applyOptionalQueryParam "from" (show <$> dgoFrom)
+      [ ("fieldName", Just $ toS $ duplicateFieldNameToText dgoFieldName)
+      , ("fieldValues", Just $ toS dgoFieldValues)
+      ]
+
+listDuplicateGroup :: forall m cf . (HasZoho m, FromJSON cf)
+                   => DuplicateGroupOptions
+                   -> OrgId
+                   -> m (Either Error [DuplicateGroup cf])
+listDuplicateGroup opts oid = do
+  x :: Either Error (ResponseWrapper "data" [DuplicateGroup cf]) <-
+    ZM.runRequestAndParseOptionalResponse (ResponseWrapper []) Prelude.id $
+    listDuplicateGroupRequest opts oid
+  pure $ fmap unwrapResponse x
+
+-- | Merge contacts
+-- POST /api/v1/contacts/{contact_id}/merge
+-- The contact_id in the URL becomes the surviving contact.
+-- The ids in the body are the contacts to merge into it.
+-- The source object maps field names to the contact ID whose value should be kept.
+data MergeRequest = MergeRequest
+  { mrIds :: ![ContactId]
+  , mrSource :: !(Maybe Aeson.Value)  -- JSON object mapping field names to contact IDs
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON MergeRequest where
+  toJSON = genericToJSON (zohoPrefix Casing.camelCase)
+
+mergeRequest :: OrgId
+             -> ContactId  -- Primary (surviving) contact
+             -> MergeRequest
+             -> Request
+mergeRequest oid primaryId req =
+  ZO.prepareJSONPost (Common.mkApiEndpoint $ "/contacts/" <> toS primaryId <> "/merge") [] [Common.orgIdHeader oid] req
+
+merge :: forall m cf . (HasZoho m, FromJSON cf)
+      => OrgId
+      -> ContactId  -- Primary (surviving) contact
+      -> MergeRequest
+      -> m (Either Error (Contact cf))
+merge oid primaryId req =
+  ZM.runRequestAndParseResponse $
+  mergeRequest oid primaryId req
