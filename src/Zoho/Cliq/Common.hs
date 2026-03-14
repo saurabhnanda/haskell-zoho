@@ -5,6 +5,7 @@
 -- | Common types shared across Zoho Cliq modules
 module Zoho.Cliq.Common
   ( BotUniqueName(..)
+  , UserId(..)
   ) where
 
 import Data.Aeson
@@ -20,3 +21,13 @@ instance FromJSON BotUniqueName where
 
 instance ToJSON BotUniqueName where
   toJSON (BotUniqueName t) = String t
+
+-- | Cliq user identifier
+newtype UserId = UserId { rawUserId :: Text }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON UserId where
+  parseJSON = withText "UserId" (pure . UserId)
+
+instance ToJSON UserId where
+  toJSON (UserId t) = String t

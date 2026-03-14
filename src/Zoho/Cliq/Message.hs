@@ -118,6 +118,7 @@ import qualified Network.HTTP.Client.MultipartFormData as Multi
 import qualified Data.ByteString.Lazy as BSL
 import qualified URI.ByteString as U
 import Zoho.Cliq.Channel
+import Zoho.Cliq.Common (UserId(..))
 import Zoho.Cliq.Form (FormField)
 import Zoho.Types (Error, ResponseWrapper, zohoPrefix, zohoPrefixTyp, unwrapResponse, unsafeMergeObjects)
 import qualified Zoho.OAuth as ZO
@@ -165,16 +166,6 @@ instance FromJSON MessageId where
     pure $ MessageId $ T.replace "%20" "_" t
 
 instance ToJSON MessageId where
-  toJSON = genericToJSON jsonOpts
-
--- | User identifier
-newtype UserId = UserId { rawUserId :: Text }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON UserId where
-  parseJSON = genericParseJSON jsonOpts
-
-instance ToJSON UserId where
   toJSON = genericToJSON jsonOpts
 
 -- | Message type

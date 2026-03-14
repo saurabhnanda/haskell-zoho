@@ -1,8 +1,10 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -17,11 +19,17 @@ module Zoho.Cliq.Channel
 
   -- * Re-exports from Common
   , BotUniqueName(..)
+  , UserId(..)
+
+  , ChannelMember(..)
 
   -- * API Functions
   , createChannel
   , listChannels
   , associateBotWithChannel
+  , addMembersToChannel
+  , getChannelMembers
+  , removeMemberFromChannel
   ) where
 
 import Control.Lens.TH (abbreviatedFields, makeLensesWith)
@@ -34,7 +42,7 @@ import Data.Time.Clock.POSIX (POSIXTime)
 import GHC.Generics
 import Network.HTTP.Client (Request)
 import qualified URI.ByteString as U
-import Zoho.Cliq.Common (BotUniqueName(..))
+import Zoho.Cliq.Common (BotUniqueName(..), UserId(..))
 import Zoho.Types (Error, ResponseWrapper, zohoPrefixTyp, unwrapResponse)
 import qualified Zoho.OAuth as ZO
 import qualified Zoho.ZohoM as ZM
@@ -167,3 +175,67 @@ associateBotWithChannel :: (ZM.HasZoho m)
                         -> m (Either Error ())
 associateBotWithChannel botName channelName =
   ZM.runRequestAndParseOptionalResponse () Prelude.id $ associateBotWithChannelRequest botName channelName
+
+-- | A channel member
+-- Response: {"user_id":"56087523","email_id":"saurabh@vacationlabs.com","name":"saurabh","user_role":"super_admin"}
+data ChannelMember = ChannelMember
+  { memberUserId :: !UserId
+  , memberName :: !Text
+  , memberEmailId :: !(Maybe Text)
+  , memberUserRole :: !(Maybe Text)
+  } deriving (Eq, Show, Generic)
+
+instance FromJSON ChannelMember where
+  parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
+
+-- | Build channel path segment from either ChannelId or ChannelUniqueName.
+-- ChannelId uses /channels/{id}, ChannelUniqueName uses /channelsbyname/{name}
+channelPath :: Either ChannelId ChannelUniqueName -> ByteString
+channelPath (Left (ChannelId cid)) = "/channels/" <> toS cid
+channelPath (Right (ChannelUniqueName name)) = "/channelsbyname/" <> toS name
+
+-- | Get channel members
+-- GET /api/v2/channels/{ID}/members  OR  /api/v2/channelsbyname/{NAME}/members
+getChannelMembersRequest :: Either ChannelId ChannelUniqueName -> Request
+getChannelMembersRequest chan =
+  let endpoint = mkCliqEndpoint $ channelPath chan <> "/members"
+  in ZO.prepareGet endpoint [] []
+
+getChannelMembers :: (ZM.HasZoho m)
+                  => Either ChannelId ChannelUniqueName
+                  -> m (Either Error [ChannelMember])
+getChannelMembers chan = do
+  result :: Either Error (ResponseWrapper "members" [ChannelMember]) <- ZM.runRequestAndParseResponse $ getChannelMembersRequest chan
+  pure $ fmap unwrapResponse result
+
+-- | Add members to a channel
+-- POST .../members with { "user_ids": ["123456", "223456"] }
+-- Max 100 users per request, 10 requests/min
+addMembersToChannelRequest :: Either ChannelId ChannelUniqueName -> [UserId] -> Request
+addMembersToChannelRequest chan userIds =
+  let endpoint = mkCliqEndpoint $ channelPath chan <> "/members"
+      payload = object ["user_ids" .= userIds]
+  in ZO.prepareJSONPost endpoint [] [] payload
+
+-- | Returns 204 No Content on success
+addMembersToChannel :: (ZM.HasZoho m)
+                    => Either ChannelId ChannelUniqueName
+                    -> [UserId]    -- ^ User IDs to add (max 100)
+                    -> m (Either Error ())
+addMembersToChannel chan userIds =
+  ZM.runRequestAndParseOptionalResponse () Prelude.id $ addMembersToChannelRequest chan userIds
+
+-- | Remove a member from a channel
+-- DELETE .../members/{USER_ID}
+removeMemberFromChannelRequest :: Either ChannelId ChannelUniqueName -> UserId -> Request
+removeMemberFromChannelRequest chan (UserId uid) =
+  let endpoint = mkCliqEndpoint $ channelPath chan <> "/members/" <> toS uid
+  in ZO.prepareDelete endpoint [] [] Nothing
+
+-- | Returns 204 No Content on success
+removeMemberFromChannel :: (ZM.HasZoho m)
+                        => Either ChannelId ChannelUniqueName
+                        -> UserId     -- ^ User ID to remove
+                        -> m (Either Error ())
+removeMemberFromChannel chan uid =
+  ZM.runRequestAndParseOptionalResponse () Prelude.id $ removeMemberFromChannelRequest chan uid
