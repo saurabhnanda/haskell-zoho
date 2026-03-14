@@ -188,53 +188,47 @@ data ChannelMember = ChannelMember
 instance FromJSON ChannelMember where
   parseJSON = genericParseJSON (zohoPrefixTyp Casing.snakeCase)
 
--- | Build channel path segment from either ChannelId or ChannelUniqueName.
--- ChannelId uses /channels/{id}, ChannelUniqueName uses /channelsbyname/{name}
-channelPath :: Either ChannelId ChannelUniqueName -> ByteString
-channelPath (Left (ChannelId cid)) = "/channels/" <> toS cid
-channelPath (Right (ChannelUniqueName name)) = "/channelsbyname/" <> toS name
-
 -- | Get channel members
--- GET /api/v2/channels/{ID}/members  OR  /api/v2/channelsbyname/{NAME}/members
-getChannelMembersRequest :: Either ChannelId ChannelUniqueName -> Request
-getChannelMembersRequest chan =
-  let endpoint = mkCliqEndpoint $ channelPath chan <> "/members"
+-- GET /api/v2/channels/{CHANNEL_ID}/members
+getChannelMembersRequest :: ChannelId -> Request
+getChannelMembersRequest (ChannelId cid) =
+  let endpoint = mkCliqEndpoint $ "/channels/" <> toS cid <> "/members"
   in ZO.prepareGet endpoint [] []
 
 getChannelMembers :: (ZM.HasZoho m)
-                  => Either ChannelId ChannelUniqueName
+                  => ChannelId
                   -> m (Either Error [ChannelMember])
 getChannelMembers chan = do
   result :: Either Error (ResponseWrapper "members" [ChannelMember]) <- ZM.runRequestAndParseResponse $ getChannelMembersRequest chan
   pure $ fmap unwrapResponse result
 
 -- | Add members to a channel
--- POST .../members with { "user_ids": ["123456", "223456"] }
+-- POST /api/v2/channels/{CHANNEL_ID}/members with { "user_ids": ["123456", "223456"] }
 -- Max 100 users per request, 10 requests/min
-addMembersToChannelRequest :: Either ChannelId ChannelUniqueName -> [UserId] -> Request
-addMembersToChannelRequest chan userIds =
-  let endpoint = mkCliqEndpoint $ channelPath chan <> "/members"
+addMembersToChannelRequest :: ChannelId -> [UserId] -> Request
+addMembersToChannelRequest (ChannelId cid) userIds =
+  let endpoint = mkCliqEndpoint $ "/channels/" <> toS cid <> "/members"
       payload = object ["user_ids" .= userIds]
   in ZO.prepareJSONPost endpoint [] [] payload
 
 -- | Returns 204 No Content on success
 addMembersToChannel :: (ZM.HasZoho m)
-                    => Either ChannelId ChannelUniqueName
+                    => ChannelId
                     -> [UserId]    -- ^ User IDs to add (max 100)
                     -> m (Either Error ())
 addMembersToChannel chan userIds =
   ZM.runRequestAndParseOptionalResponse () Prelude.id $ addMembersToChannelRequest chan userIds
 
 -- | Remove a member from a channel
--- DELETE .../members/{USER_ID}
-removeMemberFromChannelRequest :: Either ChannelId ChannelUniqueName -> UserId -> Request
-removeMemberFromChannelRequest chan (UserId uid) =
-  let endpoint = mkCliqEndpoint $ channelPath chan <> "/members/" <> toS uid
+-- DELETE /api/v2/channels/{CHANNEL_ID}/members/{USER_ID}
+removeMemberFromChannelRequest :: ChannelId -> UserId -> Request
+removeMemberFromChannelRequest (ChannelId cid) (UserId uid) =
+  let endpoint = mkCliqEndpoint $ "/channels/" <> toS cid <> "/members/" <> toS uid
   in ZO.prepareDelete endpoint [] [] Nothing
 
 -- | Returns 204 No Content on success
 removeMemberFromChannel :: (ZM.HasZoho m)
-                        => Either ChannelId ChannelUniqueName
+                        => ChannelId
                         -> UserId     -- ^ User ID to remove
                         -> m (Either Error ())
 removeMemberFromChannel chan uid =
