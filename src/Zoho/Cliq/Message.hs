@@ -38,7 +38,7 @@ module Zoho.Cliq.Message
   , CliqSlideTableStyles(..)
   , CliqSlideTableSticky(..)
   , CliqTextAlign(..)
-  , CliqSlideFields(..)
+  -- , CliqSlideFields(..)  -- "fields" slide type not supported by Cliq API (tested 2026-03-14)
   , CliqSlideList(..)
   , CliqSlideListStyles(..)
   , CliqListBulletStyle(..)
@@ -455,17 +455,13 @@ instance ToJSON CliqSlideTable where
     , ("styles" .=) <$> tableStyles
     ]
 
--- | Fields slide - display key-value pairs (similar to label but without title)
--- NOTE: "fields" type may not be officially supported - consider using "label" instead
--- Max 10 elements
-data CliqSlideFields = CliqSlideFields
-  { fieldsData :: ![(Text, Text)]               -- ^ Key-value pairs (max 10)
-  } deriving (Eq, Show, Generic)
-
-instance ToJSON CliqSlideFields where
-  toJSON CliqSlideFields{..} = object
-    [ "data" .= map (\(k, v) -> object [Key.fromText k .= v]) fieldsData
-    ]
+-- | Fields slide - REMOVED: "fields" slide type is NOT supported by Cliq API.
+-- Tested 2026-03-14: Cliq returns "operation_failed" for type:"fields".
+-- Use SlideLabel instead for key-value pair display.
+--
+-- data CliqSlideFields = CliqSlideFields
+--   { fieldsData :: ![(Text, Text)]
+--   } deriving (Eq, Show, Generic)
 
 -- | List slide - display items as a bulleted/numbered list.
 --
@@ -650,7 +646,7 @@ instance ToJSON CliqSlideText where
 -- | Union type for all slide types
 data CliqSlide
   = SlideTable !CliqSlideTable
-  | SlideFields !CliqSlideFields
+  -- | SlideFields !CliqSlideFields  -- "fields" slide type not supported by Cliq API
   | SlideList !CliqSlideList
   | SlideLabel !CliqSlideLabel
   | SlideImages !CliqSlideImages
@@ -661,7 +657,7 @@ data CliqSlide
 
 instance ToJSON CliqSlide where
   toJSON (SlideTable t) = addTypeField "table" $ toJSON t
-  toJSON (SlideFields f) = addTypeField "fields" $ toJSON f
+  -- toJSON (SlideFields f) = addTypeField "fields" $ toJSON f
   toJSON (SlideList l) = addTypeField "list" $ toJSON l
   toJSON (SlideLabel l) = addTypeField "label" $ toJSON l
   toJSON (SlideImages i) = addTypeField "images" $ toJSON i
