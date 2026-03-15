@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Zoho.Desk.Common
   ( module Zoho.Desk.Common
   , module Zoho.Types
@@ -8,6 +9,7 @@ import Data.Aeson as Aeson
 import Data.Aeson.TH as Aeson
 import Data.ByteString as BS
 import Network.HTTP.Types (Header)
+import Web.HttpApiData (ToHttpApiData, FromHttpApiData)
 import Zoho.Types (OrgId(..), ApiName)
 import URI.ByteString as U
 import Zoho.OAuth as ZO
@@ -60,7 +62,7 @@ type TranslationId = Text
 -- | Zoho Desk internal agent ID (e.g., "1892000000056096")
 -- Used for ticket assigneeId and other Desk-internal references
 newtype AgentId = AgentId { rawAgentId :: Text }
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, ToHttpApiData, FromHttpApiData)
 
 instance ToJSON AgentId where
   toJSON (AgentId t) = toJSON t
@@ -71,7 +73,7 @@ instance FromJSON AgentId where
 -- | Zoho-wide user ID (e.g., "10687231")
 -- Used for @mentions in conversations and cross-Zoho-app user references
 newtype AgentZuid = AgentZuid { rawAgentZuid :: Text }
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, ToHttpApiData, FromHttpApiData)
 
 instance ToJSON AgentZuid where
   toJSON (AgentZuid t) = toJSON t

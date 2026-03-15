@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DefaultSignatures #-}
@@ -6,6 +7,7 @@ module Zoho.Types where
 
 import Data.Aeson
 import GHC.TypeLits
+import Web.HttpApiData (ToHttpApiData, FromHttpApiData)
 import Data.Proxy
 import Data.String.Conv
 import Data.Aeson as Aeson
@@ -261,4 +263,4 @@ pascalSnakeCase s = case (go False s) of
                                  then '_':x:(go False xs)
                                  else x:(go False xs)
 
-newtype OrgId = OrgId Text deriving (Eq, Show, Ord)
+newtype OrgId = OrgId { rawOrgId :: Text } deriving (Eq, Show, Ord, ToHttpApiData, FromHttpApiData)

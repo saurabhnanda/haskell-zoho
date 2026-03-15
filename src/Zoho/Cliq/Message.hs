@@ -118,6 +118,7 @@ import qualified Network.HTTP.Client.MultipartFormData as Multi
 import qualified Data.ByteString.Lazy as BSL
 import qualified URI.ByteString as U
 import Zoho.Cliq.Channel
+import Web.HttpApiData (ToHttpApiData, FromHttpApiData)
 import Zoho.Cliq.Common (UserId(..))
 import Zoho.Cliq.Form (FormField)
 import Zoho.Types (Error, ResponseWrapper, zohoPrefix, zohoPrefixTyp, unwrapResponse, unsafeMergeObjects)
@@ -147,7 +148,7 @@ addTypeField _ v = v
 
 -- | Chat identifier
 newtype ChatId = ChatId { rawChatId :: Text }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, ToHttpApiData, FromHttpApiData)
 
 instance FromJSON ChatId where
   parseJSON = genericParseJSON jsonOpts
@@ -157,7 +158,7 @@ instance ToJSON ChatId where
 
 -- | Message identifier
 newtype MessageId = MessageId { rawMessageId :: Text }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, ToHttpApiData, FromHttpApiData)
 
 instance FromJSON MessageId where
   -- Zoho returns %20 in message IDs but REST API expects _ in URL paths
@@ -199,7 +200,7 @@ $(makeLensesWith abbreviatedFields ''MessageSender)
 
 -- | Unique identifier for a file attachment in Cliq.
 newtype FileId = FileId { rawFileId :: Text }
-  deriving (Eq, Show, Generic, ToJSON, FromJSON)
+  deriving (Eq, Show, Generic, ToJSON, FromJSON, ToHttpApiData, FromHttpApiData)
 
 -- | File metadata in a Cliq file message
 data CliqFileInfo = CliqFileInfo

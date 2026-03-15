@@ -3,6 +3,7 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StrictData #-}
@@ -42,6 +43,7 @@ import Data.Time.Clock.POSIX (POSIXTime)
 import GHC.Generics
 import Network.HTTP.Client (Request)
 import qualified URI.ByteString as U
+import Web.HttpApiData (ToHttpApiData, FromHttpApiData)
 import Zoho.Cliq.Common (BotUniqueName(..), UserId(..))
 import Zoho.Types (Error, ResponseWrapper, zohoPrefixTyp, unwrapResponse)
 import qualified Zoho.OAuth as ZO
@@ -49,7 +51,7 @@ import qualified Zoho.ZohoM as ZM
 
 -- | Channel identifier
 newtype ChannelId = ChannelId { rawChannelId :: Text }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, ToHttpApiData, FromHttpApiData)
 
 instance FromJSON ChannelId where
   parseJSON = withText "ChannelId" (pure . ChannelId)
@@ -59,7 +61,7 @@ instance ToJSON ChannelId where
 
 -- | Channel unique name
 newtype ChannelUniqueName = ChannelUniqueName { rawChannelUniqueName :: Text }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, ToHttpApiData, FromHttpApiData)
 
 instance FromJSON ChannelUniqueName where
   parseJSON = withText "ChannelUniqueName" (pure . ChannelUniqueName)

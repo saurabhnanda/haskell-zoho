@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
 
@@ -11,10 +12,11 @@ module Zoho.Cliq.Common
 import Data.Aeson
 import Data.Text (Text)
 import GHC.Generics
+import Web.HttpApiData (ToHttpApiData, FromHttpApiData)
 
 -- | Bot unique name
 newtype BotUniqueName = BotUniqueName { rawBotUniqueName :: Text }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, ToHttpApiData, FromHttpApiData)
 
 instance FromJSON BotUniqueName where
   parseJSON = withText "BotUniqueName" (pure . BotUniqueName)
@@ -24,7 +26,7 @@ instance ToJSON BotUniqueName where
 
 -- | Cliq user identifier
 newtype UserId = UserId { rawUserId :: Text }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, ToHttpApiData, FromHttpApiData)
 
 instance FromJSON UserId where
   parseJSON = withText "UserId" (pure . UserId)
