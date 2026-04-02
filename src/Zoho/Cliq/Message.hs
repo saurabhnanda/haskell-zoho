@@ -85,6 +85,7 @@ module Zoho.Cliq.Message
   , CliqFileInfo(..)
   , downloadFile
   , shareFileToChannel
+  , shareFileToChannelAsBot
   , shareFileToChat
 
   -- * Utilities
@@ -1038,6 +1039,32 @@ shareFileToChannel :: (ZM.HasZoho m)
   -> m (Response BSL.ByteString)
 shareFileToChannel channelName fileName fileBytes mComment = do
   req <- liftIO $ shareFileToChannelRequest channelName fileName fileBytes mComment
+  ZM.runRequest req
+
+-- | Share a file to a channel as a bot - Request builder.
+-- Same as shareFileToChannelRequest but adds ?bot_unique_name= query param.
+shareFileToChannelAsBotRequest :: ChannelUniqueName -> BotUniqueName -> Text -> BSL.ByteString -> Maybe Text -> IO Request
+shareFileToChannelAsBotRequest channelName botName fileName fileBytes mComment = do
+  let endpoint = mkCliqEndpoint $ "/channelsbyname/" <> toS (rawChannelUniqueName channelName) <> "/files"
+      queryParams = [("bot_unique_name", Just $ toS $ rawBotUniqueName botName)]
+      baseReq = (ZO.prepareGet endpoint queryParams []) { HC.method = "POST" }
+      filePart = partFileRequestBody "file" (toS fileName) (HC.RequestBodyLBS fileBytes)
+      commentParts = case mComment of
+        Nothing -> []
+        Just c -> [Multi.partBS "comments" (toS $ "[" <> encodeJsonText c <> "]")]
+  Multi.formDataBody (filePart : commentParts) baseReq
+
+-- | Share a file to a channel as a bot.
+-- Bot must already be a participant in the channel. Returns 204 No Content on success.
+shareFileToChannelAsBot :: (ZM.HasZoho m)
+  => ChannelUniqueName
+  -> BotUniqueName    -- ^ Bot unique name
+  -> Text             -- ^ file name (e.g. "photo.jpg")
+  -> BSL.ByteString   -- ^ file contents
+  -> Maybe Text       -- ^ optional comment for the file
+  -> m (Response BSL.ByteString)
+shareFileToChannelAsBot channelName botName fileName fileBytes mComment = do
+  req <- liftIO $ shareFileToChannelAsBotRequest channelName botName fileName fileBytes mComment
   ZM.runRequest req
 
 -- | Share a file to a chat - Request builder.
