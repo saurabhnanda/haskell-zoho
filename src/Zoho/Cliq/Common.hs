@@ -6,13 +6,14 @@
 -- | Common types shared across Zoho Cliq modules
 module Zoho.Cliq.Common
   ( BotUniqueName(..)
-  , UserId(..)
+  , Zuid(..)  -- re-exported from Zoho.Types
   ) where
 
 import Data.Aeson
 import Data.Text (Text)
 import GHC.Generics
 import Web.HttpApiData (ToHttpApiData, FromHttpApiData)
+import Zoho.Types (Zuid(..))
 
 -- | Bot unique name
 newtype BotUniqueName = BotUniqueName { rawBotUniqueName :: Text }
@@ -23,13 +24,3 @@ instance FromJSON BotUniqueName where
 
 instance ToJSON BotUniqueName where
   toJSON (BotUniqueName t) = String t
-
--- | Cliq user identifier
-newtype UserId = UserId { rawUserId :: Text }
-  deriving (Eq, Show, Generic, ToHttpApiData, FromHttpApiData)
-
-instance FromJSON UserId where
-  parseJSON = withText "UserId" (pure . UserId)
-
-instance ToJSON UserId where
-  toJSON (UserId t) = String t

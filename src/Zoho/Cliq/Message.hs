@@ -11,7 +11,7 @@ module Zoho.Cliq.Message
   ( -- * Types
     ChatId(..)
     , MessageId(..)
-  , UserId(..)
+  , Zuid(..)
   , MessageType(..)
   , MessageSender(..)
   , MessageContentPoly(..)
@@ -120,7 +120,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified URI.ByteString as U
 import Zoho.Cliq.Channel
 import Web.HttpApiData (ToHttpApiData, FromHttpApiData)
-import Zoho.Cliq.Common (UserId(..))
+import Zoho.Cliq.Common (Zuid(..))
 import Zoho.Cliq.Form (FormField)
 import Zoho.Types (Error, ResponseWrapper, zohoPrefix, zohoPrefixTyp, unwrapResponse, unsafeMergeObjects)
 import qualified Zoho.OAuth as ZO
@@ -188,7 +188,7 @@ instance ToJSON MessageType where
 -- | Message sender
 data MessageSender = MessageSender
   { senderName :: !Text
-  , senderId :: !UserId
+  , senderId :: !Zuid
   } deriving (Eq, Show, Generic)
 
 instance FromJSON MessageSender where

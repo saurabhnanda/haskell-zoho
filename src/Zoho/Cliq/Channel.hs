@@ -20,7 +20,7 @@ module Zoho.Cliq.Channel
 
   -- * Re-exports from Common
   , BotUniqueName(..)
-  , UserId(..)
+  , Zuid(..)
 
   , ChannelMember(..)
 
@@ -44,7 +44,7 @@ import GHC.Generics
 import Network.HTTP.Client (Request)
 import qualified URI.ByteString as U
 import Web.HttpApiData (ToHttpApiData, FromHttpApiData)
-import Zoho.Cliq.Common (BotUniqueName(..), UserId(..))
+import Zoho.Cliq.Common (BotUniqueName(..), Zuid(..))
 import Zoho.Types (Error, ResponseWrapper, zohoPrefixTyp, unwrapResponse)
 import qualified Zoho.OAuth as ZO
 import qualified Zoho.ZohoM as ZM
@@ -181,7 +181,7 @@ associateBotWithChannel botName channelName =
 -- | A channel member
 -- Response: {"user_id":"56087523","email_id":"saurabh@vacationlabs.com","name":"saurabh","user_role":"super_admin"}
 data ChannelMember = ChannelMember
-  { memberUserId :: !UserId
+  { memberUserId :: !Zuid
   , memberName :: !Text
   , memberEmailId :: !(Maybe Text)
   , memberUserRole :: !(Maybe Text)
@@ -207,7 +207,7 @@ getChannelMembers chan = do
 -- | Add members to a channel
 -- POST /api/v2/channels/{CHANNEL_ID}/members with { "user_ids": ["123456", "223456"] }
 -- Max 100 users per request, 10 requests/min
-addMembersToChannelRequest :: ChannelId -> [UserId] -> Request
+addMembersToChannelRequest :: ChannelId -> [Zuid] -> Request
 addMembersToChannelRequest (ChannelId cid) userIds =
   let endpoint = mkCliqEndpoint $ "/channels/" <> toS cid <> "/members"
       payload = object ["user_ids" .= userIds]
@@ -216,22 +216,22 @@ addMembersToChannelRequest (ChannelId cid) userIds =
 -- | Returns 204 No Content on success
 addMembersToChannel :: (ZM.HasZoho m)
                     => ChannelId
-                    -> [UserId]    -- ^ User IDs to add (max 100)
+                    -> [Zuid]    -- ^ User IDs to add (max 100)
                     -> m (Either Error ())
 addMembersToChannel chan userIds =
   ZM.runRequestAndParseOptionalResponse () Prelude.id $ addMembersToChannelRequest chan userIds
 
 -- | Remove a member from a channel
 -- DELETE /api/v2/channels/{CHANNEL_ID}/members/{USER_ID}
-removeMemberFromChannelRequest :: ChannelId -> UserId -> Request
-removeMemberFromChannelRequest (ChannelId cid) (UserId uid) =
+removeMemberFromChannelRequest :: ChannelId -> Zuid -> Request
+removeMemberFromChannelRequest (ChannelId cid) (Zuid uid) =
   let endpoint = mkCliqEndpoint $ "/channels/" <> toS cid <> "/members/" <> toS uid
   in ZO.prepareDelete endpoint [] [] Nothing
 
 -- | Returns 204 No Content on success
 removeMemberFromChannel :: (ZM.HasZoho m)
                         => ChannelId
-                        -> UserId     -- ^ User ID to remove
+                        -> Zuid     -- ^ User ID to remove
                         -> m (Either Error ())
 removeMemberFromChannel chan uid =
   ZM.runRequestAndParseOptionalResponse () Prelude.id $ removeMemberFromChannelRequest chan uid

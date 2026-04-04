@@ -264,3 +264,13 @@ pascalSnakeCase s = case (go False s) of
                                  else x:(go False xs)
 
 newtype OrgId = OrgId { rawOrgId :: Text } deriving (Eq, Show, Ord, ToHttpApiData, FromHttpApiData)
+
+-- | Zoho User ID (ZUID) — the universal user identifier across all Zoho products
+-- (Desk, Cliq, CRM, etc.). The same person has the same ZUID everywhere.
+newtype Zuid = Zuid { rawZuid :: Text } deriving (Eq, Show, Ord, ToHttpApiData, FromHttpApiData)
+
+instance ToJSON Zuid where
+  toJSON (Zuid t) = toJSON t
+
+instance FromJSON Zuid where
+  parseJSON = fmap Zuid . parseJSON

@@ -70,16 +70,9 @@ instance ToJSON AgentId where
 instance FromJSON AgentId where
   parseJSON = fmap AgentId . parseJSON
 
--- | Zoho-wide user ID (e.g., "10687231")
--- Used for @mentions in conversations and cross-Zoho-app user references
-newtype AgentZuid = AgentZuid { rawAgentZuid :: Text }
-  deriving (Eq, Show, Ord, ToHttpApiData, FromHttpApiData)
-
-instance ToJSON AgentZuid where
-  toJSON (AgentZuid t) = toJSON t
-
-instance FromJSON AgentZuid where
-  parseJSON = fmap AgentZuid . parseJSON
+-- | Agent ZUID — alias for Zuid (Zoho Universal ID). Used in Desk for agent identification.
+-- The underlying type is Zuid from Zoho.Types.
+type AgentZuid = Zuid
 type RoleId = Text
 type ProfileId = Text
 type TagId = Text
