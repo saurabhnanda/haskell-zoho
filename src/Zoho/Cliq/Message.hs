@@ -1026,7 +1026,7 @@ shareFileToChannelRequest channelName fileName fileBytes mComment = do
       commentParts = case mComment of
         Nothing -> []
         -- Cliq expects "comments" as a JSON array of strings (one per file)
-        Just c -> [Multi.partBS "comments" (toS $ "[" <> encodeJsonText c <> "]")]
+        Just c -> [Multi.partBS "comments" (BSL.toStrict $ encode [c])]
   Multi.formDataBody (filePart : commentParts) baseReq
 
 -- | Share a file to a channel by channel unique name.
@@ -1051,7 +1051,7 @@ shareFileToChannelAsBotRequest channelName botName fileName fileBytes mComment =
       filePart = partFileRequestBody "file" (toS fileName) (HC.RequestBodyLBS fileBytes)
       commentParts = case mComment of
         Nothing -> []
-        Just c -> [Multi.partBS "comments" (toS $ "[" <> encodeJsonText c <> "]")]
+        Just c -> [Multi.partBS "comments" (BSL.toStrict $ encode [c])]
   Multi.formDataBody (filePart : commentParts) baseReq
 
 -- | Share a file to a channel as a bot.
@@ -1078,7 +1078,7 @@ shareFileToChatRequest cid fileName fileBytes mComment = do
       filePart = partFileRequestBody "file" (toS fileName) (HC.RequestBodyLBS fileBytes)
       commentParts = case mComment of
         Nothing -> []
-        Just c -> [Multi.partBS "comments" (toS $ "[" <> encodeJsonText c <> "]")]
+        Just c -> [Multi.partBS "comments" (BSL.toStrict $ encode [c])]
   Multi.formDataBody (filePart : commentParts) baseReq
 
 -- | Share a file to a chat by chat ID.
@@ -1093,7 +1093,4 @@ shareFileToChat cid fileName fileBytes mComment = do
   req <- liftIO $ shareFileToChatRequest cid fileName fileBytes mComment
   ZM.runRequest req
 
--- | JSON-encode a Text value (adds quotes, escapes special chars)
-encodeJsonText :: Text -> Text
-encodeJsonText t = T.pack $ show t  -- show on Text produces valid JSON string with quotes
   
