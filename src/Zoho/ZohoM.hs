@@ -402,12 +402,14 @@ defaultRunRequest isAuthenticated req = do
             then handleSecurityError mAtkn r
             else pure r
         401 ->
-          case ((HC.responseBody r) ^? (key "code")) <|> ((HC.responseBody r) ^? (key "errorCode")) <|> ((HC.responseBody r) ^? (key "data") . (key "errorCode")) of
+          let body = HC.responseBody r in
+          case (body ^? (key "code")) <|> (body ^? (key "errorCode")) <|> (body ^? (key "data") . (key "errorCode")) <|> (body ^? (key "error") . (key "code")) of
             Just (Aeson.String "INVALID_TOKEN") -> handleSecurityError mAtkn r
             Just (Aeson.String "INVALID_OAUTH") -> handleSecurityError mAtkn r
             Just (Aeson.String "oauthtoken_invalid") -> handleSecurityError mAtkn r  -- Zoho Cliq
             Just (Aeson.Number 57) -> handleSecurityError mAtkn r
             Just (Aeson.Number 8535) -> handleSecurityError mAtkn r
+            Just (Aeson.Number 2000) -> handleSecurityError mAtkn r  -- Zoho Meeting: {"error":{"code":2000,"message":"INVALID_OAUTHTOKEN"}}
             _ -> throwHttpException r
         st -> if (isRetryableStatusCode st) && (rsIterNumber == (zohoMaximumRetries - 1))
               then E.throwM ZohoRetriableException

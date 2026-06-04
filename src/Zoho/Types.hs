@@ -6,6 +6,7 @@
 module Zoho.Types where
 
 import Data.Aeson
+import Data.Aeson.Types (Parser)
 import GHC.TypeLits
 import Web.HttpApiData (ToHttpApiData, FromHttpApiData)
 import Data.Proxy
@@ -58,6 +59,13 @@ instance (ToJSON a, ToJSON b) => ToJSON (UnsafeEither a b) where
 instance (FromJSON a, FromJSON b) => FromJSON (UnsafeEither a b) where
   parseJSON v = (UnsafeLeft <$> parseJSON v) <|> (UnsafeRight <$> parseJSON v)
 
+-- | Parse a JSON value that Zoho may serialize as either a String or a Number into
+-- 'Text'. Zoho id fields (meetingKey, recordingId, ...) flip representation between
+-- endpoints/versions; this normalises both. The inconsistency is pervasive across Zoho
+-- APIs, so this lives here for reuse rather than per-module.
+parseTextOrNumber :: Value -> Parser Text
+parseTextOrNumber v = parseJSON v <|> (Data.Text.pack . show <$> (parseJSON v :: Parser Integer))
+
 type ApiName = Text
 
 data ResponseWrapper (s :: Symbol) a = ResponseWrapper { unwrapResponse :: a } deriving (Eq, Show)
@@ -93,11 +101,11 @@ emptyPaginatedResponse = PaginatedResponse
 instance (FromJSON a, KnownSymbol s) => FromJSON (PaginatedResponse s a) where
   parseJSON = withObject "Expecting Object to parse into a PaginatedResponse" $ \o -> do
     pageActualData <- o .: (Key.fromString $ symbolVal (Proxy :: Proxy s))
-    info_ <- (o .: "info") <|> (o .: "page_context")
+    info_ <- (o .: "info") <|> (o .: "page_context") <|> (o .: "meta")  -- "meta": Zoho Meeting
     pageRecordsPerPage <- info_ .:? "per_page"
     pageCount <- info_ .:? "count"
     pageCurrentPage <- info_ .:? "page"
-    pageMoreRecords <- (info_ .: "more_records") <|> (info_ .: "has_more_page")
+    pageMoreRecords <- (info_ .: "more_records") <|> (info_ .: "has_more_page") <|> (info_ .: "moreRecords")  -- "moreRecords": Zoho Meeting
     pure PaginatedResponse{..}
 
 moduleJsonFieldNameMapping :: String -> String

@@ -39,6 +39,11 @@ library
       Zoho.Books.VendorCredit
       Zoho.Books.Journal
       Zoho.Books.Item
+      Zoho.Meeting.Common
+      Zoho.Meeting.Recording
+      Zoho.Meeting.Artifact
+      Zoho.Meeting.Session
+      Zoho.Meeting.Participant
       Zoho.CRM.Records
       Zoho.CRM.Common
       Zoho.CRM.Contacts
