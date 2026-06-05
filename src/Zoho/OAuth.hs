@@ -1,6 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Zoho.OAuth where
 
@@ -15,6 +17,11 @@ import Data.Coerce (coerce)
 import Data.Text as T
 import Data.String.Conv
 import Network.HTTP.Client as HC -- (Manager(..), newManager, Request, ManagerSettings(..), requestBody, requestHeaders, RequestBody(..), Response(..))
+import qualified Data.ByteString as SBS (hPut, null, length)
+import qualified Data.ByteString.Lazy as LBS (empty, fromChunks)
+import System.IO (withBinaryFile, IOMode(WriteMode))
+import Control.Exception (throwIO)
+import Text.Read (readMaybe)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.HTTP.Types as HT
 import Network.Wreq as W
@@ -279,11 +286,48 @@ prepareWithPayload method u q h pload =
   in req{requestBody=RequestBodyLBS pload}
 
 
+-- | Perform a request and read the entire response body into memory. Fine for normal
+-- API calls (JSON responses); for large downloads such as meeting recordings use
+-- 'downloadToFile' instead, which streams the body to disk without buffering it.
 runRequest :: Request
            -> Manager
            -> AccessToken
            -> IO (Response BSL.ByteString)
 runRequest req mgr tkn = httpLbs (replaceAuthHeader tkn req) mgr
+
+-- | Perform a request and, on success (2xx), write the response body to @dest@ one
+-- chunk at a time so the whole body is never held in memory at once. Use this instead
+-- of 'runRequest' for large downloads such as meeting recordings. On a non-2xx the
+-- (small) error body is read into memory and returned. Either way the result is a
+-- @Response BSL.ByteString@ with the same shape 'runRequest' returns, so the shared
+-- request handling in @Zoho.ZohoM.defaultRunRequestWith@ can treat both the same way
+-- (including its 401 token-refresh retry). On a 2xx, if the response carried a
+-- Content-Length, the bytes written are checked against it and a mismatch (a truncated
+-- download) throws. A partial file can still be left at @dest@ if the stream dies after
+-- the network retries are exhausted, so callers should download to a temp path and
+-- promote it to the final name only on success.
+downloadToFile :: Request -> Manager -> AccessToken -> FilePath -> IO (Response BSL.ByteString)
+downloadToFile req mgr tkn dest =
+  HC.withResponse (replaceAuthHeader tkn req) mgr $ \resp ->
+    if HT.statusIsSuccessful (HC.responseStatus resp)
+    then do
+      written <- withBinaryFile dest WriteMode $ \h ->
+        let go !n = HC.brRead (HC.responseBody resp) >>= \chunk ->
+              if SBS.null chunk
+                then pure n
+                else SBS.hPut h chunk >> go (n + fromIntegral (SBS.length chunk))
+        in go (0 :: Integer)
+      -- When the server sent a Content-Length (absent on chunked responses), verify the
+      -- bytes written match it -- catches a truncated download. The caller is expected to
+      -- discard the partial file on this exception.
+      case lookup HT.hContentLength (HC.responseHeaders resp) >>= (readMaybe . C8.unpack) of
+        Just (expected :: Integer) | expected /= written ->
+          throwIO $ userError ("Zoho downloadToFile: truncated download (Content-Length " <> show expected <> ", wrote " <> show written <> ")")
+        _ -> pure ()
+      pure (LBS.empty <$ resp)
+    else do
+      body <- LBS.fromChunks <$> HC.brConsume (HC.responseBody resp)
+      pure (body <$ resp)
 
 testToken :: RefreshToken
 testToken = RefreshToken "1000.d172fccaf6d7e1e08ec40af3cbf05af6.fa961eedf1fa4b2cfbe822439b376bb0"

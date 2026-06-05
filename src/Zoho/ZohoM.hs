@@ -358,11 +358,48 @@ runRequestAndParseResponse req = do
   pure $ parseResponse $ HC.responseBody res
 
 
+-- | Download an authenticated Zoho request straight to a file on disk, streaming the
+-- response body so the whole thing is never held in memory at once (needed for large
+-- media such as meeting recordings). It goes through the same rate-limiting,
+-- token-refresh and retry handling as the ordinary 'runRequest', via
+-- 'defaultRunRequestWith'.
+runRequestToFile :: (HasZoho m, E.MonadMask m) => Request -> FilePath -> m ()
+runRequestToFile req dest =
+  void $ defaultRunRequestWith (\r mgr tkn -> ZO.downloadToFile r mgr tkn dest) True req
+
+-- | The standard request runner: send a Zoho request and return the whole response
+-- with its body read into memory. Takes care of rate limiting, attaching/refreshing the
+-- OAuth token, retrying on transient network errors, and the 401 token-refresh-retry
+-- (all implemented in 'defaultRunRequestWith'). The 'Bool' is whether the request needs
+-- the bearer token attached (authenticated). For large downloads that should not be held
+-- in memory all at once, use 'runRequestToFile' instead.
 defaultRunRequest :: (HasZoho m, E.MonadMask m)
                   => Bool
                   -> Request
                   -> m (Response BSL.ByteString)
-defaultRunRequest isAuthenticated req = do
+defaultRunRequest = defaultRunRequestWith ZO.runRequest
+
+-- | Same as 'defaultRunRequest', but the function that actually performs the HTTP
+-- request is passed in rather than hard-coded. This keeps everything that has to happen
+-- around every authenticated Zoho request in one place -- waiting on the rate limiter,
+-- fetching the OAuth access token, retrying on transient network errors, and checking
+-- the response status (including refreshing the token and retrying once when Zoho
+-- replies 401 with an "invalid token" error) -- while the caller chooses HOW the request
+-- is run:
+--
+--   * @Zoho.OAuth.runRequest@ reads the whole response body into memory (the default).
+--   * @Zoho.OAuth.downloadToFile@ streams the response body to a file instead.
+--
+-- The passed-in function returns a @Response BSL.ByteString@. The status check below
+-- only inspects the body when the status is NOT 2xx (to read Zoho's error code); on a
+-- 2xx it ignores the body. That is what lets @downloadToFile@ write the real body to a
+-- file and hand back a response whose body is empty.
+defaultRunRequestWith :: (HasZoho m, E.MonadMask m)
+                  => (Request -> Manager -> AccessToken -> IO (Response BSL.ByteString))
+                  -> Bool
+                  -> Request
+                  -> m (Response BSL.ByteString)
+defaultRunRequestWith authedExec isAuthenticated req = do
   mgr <- getManager
   Retry.recovering
     zohoRetryPolicy
@@ -388,7 +425,7 @@ defaultRunRequest isAuthenticated req = do
         True -> do
           let finalReq = req{redirectCount=0}
           atkn <- getAccessToken
-          (Just atkn,) <$> (liftIO $ retryOnTemporaryNetworkErrors $ ZO.runRequest finalReq mgr atkn)
+          (Just atkn,) <$> (liftIO $ retryOnTemporaryNetworkErrors $ authedExec finalReq mgr atkn)
 
       case (HT.statusCode $ HC.responseStatus r) of
         200 -> pure r
