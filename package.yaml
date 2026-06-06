@@ -85,6 +85,10 @@ library:
     - Zoho.Meeting.Artifact
     - Zoho.Meeting.Session
     - Zoho.Meeting.Participant
+    - Zoho.Projects.Common
+    - Zoho.Projects.Project
+    - Zoho.Projects.Tasklist
+    - Zoho.Projects.Task
     - Zoho.CRM.Records
     - Zoho.CRM.Common
     - Zoho.CRM.Contacts

@@ -440,9 +440,10 @@ defaultRunRequestWith authedExec isAuthenticated req = do
             else pure r
         401 ->
           let body = HC.responseBody r in
-          case (body ^? (key "code")) <|> (body ^? (key "errorCode")) <|> (body ^? (key "data") . (key "errorCode")) <|> (body ^? (key "error") . (key "code")) of
+          case (body ^? (key "code")) <|> (body ^? (key "errorCode")) <|> (body ^? (key "data") . (key "errorCode")) <|> (body ^? (key "error") . (key "code")) <|> (body ^? (key "error") . (key "title")) of
             Just (Aeson.String "INVALID_TOKEN") -> handleSecurityError mAtkn r
             Just (Aeson.String "INVALID_OAUTH") -> handleSecurityError mAtkn r
+            Just (Aeson.String "INVALID_OAUTHTOKEN") -> handleSecurityError mAtkn r  -- Zoho Projects v3: {"error":{"status_code":"401","title":"INVALID_OAUTHTOKEN"}}
             Just (Aeson.String "oauthtoken_invalid") -> handleSecurityError mAtkn r  -- Zoho Cliq
             Just (Aeson.Number 57) -> handleSecurityError mAtkn r
             Just (Aeson.Number 8535) -> handleSecurityError mAtkn r

@@ -280,5 +280,7 @@ newtype Zuid = Zuid { rawZuid :: Text } deriving (Eq, Show, Ord, ToHttpApiData, 
 instance ToJSON Zuid where
   toJSON (Zuid t) = toJSON t
 
+-- Zoho serializes zuids inconsistently -- a String in some payloads, a Number in others
+-- (e.g. Projects task owners read back numeric). Accept both via 'parseTextOrNumber'.
 instance FromJSON Zuid where
-  parseJSON = fmap Zuid . parseJSON
+  parseJSON = fmap Zuid . parseTextOrNumber
