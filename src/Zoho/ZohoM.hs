@@ -448,6 +448,7 @@ defaultRunRequestWith authedExec isAuthenticated req = do
             Just (Aeson.Number 57) -> handleSecurityError mAtkn r
             Just (Aeson.Number 8535) -> handleSecurityError mAtkn r
             Just (Aeson.Number 2000) -> handleSecurityError mAtkn r  -- Zoho Meeting: {"error":{"code":2000,"message":"INVALID_OAUTHTOKEN"}}
+            Just (Aeson.Number 6401) -> handleSecurityError mAtkn r  -- Zoho Projects /restapi base: {"error":{"code":6401,"message":"Invalid OAuth access token."}}
             _ -> throwHttpException r
         st -> if (isRetryableStatusCode st) && (rsIterNumber == (zohoMaximumRetries - 1))
               then E.throwM ZohoRetriableException

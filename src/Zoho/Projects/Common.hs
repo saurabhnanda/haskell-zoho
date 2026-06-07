@@ -53,6 +53,12 @@ mkApiEndpoint :: PortalId -> BS.ByteString -> URI
 mkApiEndpoint PortalId{rawPortalId} p =
   ZO.mkEndpoint (Host "projectsapi.zoho.com") ("/api/v3/portal/" <> rawPortalId <> p)
 
+-- | The older @/restapi/@ (v1/v2) base, needed for endpoints not yet on v3 -- notably the
+-- task-layout / custom-field metadata endpoint.
+mkRestApiEndpoint :: PortalId -> BS.ByteString -> URI
+mkRestApiEndpoint PortalId{rawPortalId} p =
+  ZO.mkEndpoint (Host "projectsapi.zoho.com") ("/restapi/portal/" <> rawPortalId <> p)
+
 -- | Pagination shared by every Projects @list@ endpoint (the v3 API uses uniform
 -- @page@ / @per_page@ query params). An all-'Nothing' value relies on server defaults.
 data ListOptions = ListOptions
