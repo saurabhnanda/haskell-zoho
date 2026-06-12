@@ -100,3 +100,30 @@ associate orgId ticketId tagNames = do
     ZM.runRequestAndParseResponse $
     associateRequest orgId ticketId tagNames
   pure $ fmap unwrapResponse result
+
+
+-- * Dissociate tags from ticket
+
+-- | Build request for dissociating tags from a ticket. Reuses 'AssociateTagRequest'
+-- -- the dissociate endpoint takes the same @{"tags":[...]}@ body.
+dissociateRequest :: OrgId -> TicketId -> [Text] -> Request
+dissociateRequest orgId ticketId tagNames =
+  let requestBody = AssociateTagRequest tagNames
+  in ZO.prepareJSONPost (Common.mkApiEndpoint $ "/tickets/" <> toS ticketId <> "/dissociateTag") [] [Common.orgIdHeader orgId] requestBody
+
+-- | Dissociate tags from a ticket
+-- POST /api/v1/tickets/{ticket_id}/dissociateTag
+-- OAuth Scope: Desk.tickets.CREATE
+--
+-- Removes one or more tags (by name) from the ticket. Returns @200@; the body may
+-- be empty, so we parse optionally and default to an empty tag list.
+dissociate :: (HasZoho m)
+           => OrgId
+           -> TicketId
+           -> [Text]  -- ^ List of tag names to dissociate
+           -> m (Either Error [Tag])
+dissociate orgId ticketId tagNames = do
+  result :: Either Error (ResponseWrapper "data" [Tag]) <-
+    ZM.runRequestAndParseOptionalResponse (ResponseWrapper []) Prelude.id $
+    dissociateRequest orgId ticketId tagNames
+  pure $ fmap unwrapResponse result
