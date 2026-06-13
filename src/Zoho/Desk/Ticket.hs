@@ -30,6 +30,7 @@ data TicketPoly stringInt ticketCf contactCf = Ticket
   , ticketSubject :: !(Maybe Text)
   , ticketDepartmentId :: !(Maybe Text)
   , ticketContactId :: !(Maybe Text)
+  , ticketAccountId :: !(Maybe Text)
   , ticketContact :: !(Maybe (Contact contactCf))
   , ticketProductId :: !(Maybe Text)
   , ticketUploads :: !(Maybe OmitField) -- TODO
@@ -174,21 +175,46 @@ create oid a =
   ZM.runRequestAndParseResponse $
   createRequest oid a
 
+-- * Update a single ticket (PATCH)
+
+updateRequest :: (ToJSON ticketCf, ToJSON contactCf)
+              => OrgId
+              -> TicketId
+              -> Ticket ticketCf contactCf
+              -> Request
+updateRequest oid tid a =
+  ZO.prepareJSONPatch (Common.mkApiEndpoint $ "/tickets/" <> toS tid) [] [Common.orgIdHeader oid] a{ticketId=Just tid}
+
+update :: (HasZoho m, ToJSON ticketCf, FromJSON ticketCf, ToJSON contactCf, FromJSON contactCf)
+       => OrgId
+       -> TicketId
+       -> Ticket ticketCf contactCf
+       -> m (Either Error (Ticket ticketCf contactCf))
+update oid tid a =
+  ZM.runRequestAndParseResponse $
+  updateRequest oid tid a
+
 -- * Get a single ticket
 
 getRequest :: OrgId
            -> TicketId
+           -> [Text]       -- ^ include params, e.g. ["contacts"] to embed the contact + nested account stub
            -> Request
-getRequest oid tid =
-  ZO.prepareGet (Common.mkApiEndpoint $ "/tickets/" <> toS tid) [] [Common.orgIdHeader oid]
+getRequest oid tid includes =
+  ZO.prepareGet (Common.mkApiEndpoint $ "/tickets/" <> toS tid) params [Common.orgIdHeader oid]
+  where
+    params = case includes of
+      [] -> []
+      xs -> [("include", Just $ toS $ T.intercalate "," xs)]
 
 get :: (HasZoho m, FromJSON ticketCf, FromJSON contactCf)
     => OrgId
     -> TicketId
+    -> [Text]
     -> m (Either Error (Ticket ticketCf contactCf))
-get oid tid =
+get oid tid includes =
   ZM.runRequestAndParseResponse $
-  getRequest oid tid
+  getRequest oid tid includes
 
 -- * Search tickets
 

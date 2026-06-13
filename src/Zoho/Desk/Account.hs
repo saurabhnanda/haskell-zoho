@@ -72,6 +72,7 @@ data ListOptions = ListOptions
   , optLimit :: !(Maybe Int)
   , optViewId :: !(Maybe Text)
   , optSortBy :: !(Maybe ApiName)
+  , optFields :: !(Maybe [ApiName])  -- ^ comma-joined into the "fields" query param; required to get cf back in a list response
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 emptyListOptions :: ListOptions
@@ -84,7 +85,8 @@ listRequest ListOptions{..} oid =
   ZO.prepareGet (Common.mkApiEndpoint "/accounts") params [Common.orgIdHeader oid]
   where
     params =
-      applyOptionalQueryParam "sorBy" optSortBy $
+      applyOptionalQueryParam "fields" (T.intercalate "," <$> optFields) $
+      applyOptionalQueryParam "sortBy" optSortBy $
       applyOptionalQueryParam "viewId" optViewId $
       applyOptionalQueryParam "limit" (show <$> optLimit) $
       applyOptionalQueryParam "from" (show <$> optFrom)
@@ -192,3 +194,18 @@ update :: (HasZoho m, ToJSON cf, FromJSON cf)
 update oid aid a =
   ZM.runRequestAndParseResponse $
   updateRequest oid aid a
+
+-- * Get a single account by id (returns its custom fields; the search endpoint does NOT accept a
+-- 'fields' param, so a per-id GET is the way to read one account's cf).
+
+getRequest :: OrgId -> Text -> Request
+getRequest oid aid =
+  ZO.prepareGet (Common.mkApiEndpoint $ "/accounts/" <> toS aid) [] [Common.orgIdHeader oid]
+
+get :: (HasZoho m, FromJSON cf)
+    => OrgId
+    -> Text
+    -> m (Either Error (Account cf))
+get oid aid =
+  ZM.runRequestAndParseResponse $
+  getRequest oid aid

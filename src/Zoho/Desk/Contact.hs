@@ -16,6 +16,7 @@ import Zoho.Desk.Utils (contactJsonOptions)
 import Zoho.Types (EmptyZohoStructure(..), Error, zohoPrefix, UnsafeEither(..))
 import Zoho.Types (OrgId(..), ApiName, ResponseWrapper(..))
 import Zoho.OAuth as ZO hiding (mkApiEndpoint)
+import Zoho.Desk.Account (Account)
 import Zoho.Desk.Common as Common
 import Zoho.Desk.Common
 import Network.HTTP.Client as HC (Request, newManager)
@@ -72,6 +73,7 @@ data Contact cf = Contact
   , contactOwnerId :: !(Maybe AgentId)
   , contactOwner :: !(Maybe Aeson.Value) -- TODO
   , contactAccountId :: !(Maybe Text)
+  , contactAccount :: !(Maybe (Account ())) -- ^ nested account stub from include=contacts: {id, accountName, website}; carries no cf
   , contatZohoCRMContact :: !(Maybe Aeson.Value) -- TODO
   , contactCustomerHappiness :: !(Maybe CustomerHappiness)
   , contactIsDeleted :: !(Maybe Bool)
@@ -96,6 +98,7 @@ data ListOptions = ListOptions
   , optLimit :: !(Maybe Int)
   , optViewId :: !(Maybe Text)
   , optSortBy :: !(Maybe ApiName)
+  , optFields :: !(Maybe [ApiName])  -- ^ comma-joined into the "fields" query param; required to get cf back in a list response
   } deriving (Eq, Show, Generic, EmptyZohoStructure)
 
 emptyListOptions :: ListOptions
@@ -108,6 +111,7 @@ listRequest ListOptions{..} oid =
   ZO.prepareGet (Common.mkApiEndpoint "/contacts") params [Common.orgIdHeader oid]
   where
     params =
+      applyOptionalQueryParam "fields" (T.intercalate "," <$> optFields) $
       applyOptionalQueryParam "sortBy" optSortBy $
       applyOptionalQueryParam "viewId" optViewId $
       applyOptionalQueryParam "limit" (show <$> optLimit) $
