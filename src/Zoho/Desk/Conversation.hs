@@ -14,6 +14,7 @@ import GHC.Generics (Generic)
 import qualified Data.Aeson.Casing as Casing
 import Data.Aeson as Aeson
 import Control.Lens (makeLensesWith, abbreviatedFields, (&), (?~))
+import Data.Aeson (Options(omitNothingFields))
 import Zoho.OAuth as ZO
 import Network.HTTP.Client as HC (Request)
 import Zoho.Desk.Common as Common
@@ -155,3 +156,86 @@ listConversations oid listOpts tid = do
     ZM.runRequestAndParseOptionalResponse (ResponseWrapper []) Prelude.id $
     listConversationsRequest oid listOpts tid
   pure $ fmap unwrapResponse x
+
+
+-- | Minimal response of a create-comment / draft-reply call. We only need to confirm the write
+-- succeeded (and capture the new entry id). The create/draft response is a comment\/thread object
+-- that, unlike the conversations LIST, may OMIT the @type@ key -- so decoding it as a full
+-- 'ConversationEntry' (whose @convTyp@ is non-optional) spuriously fails and a successful write is
+-- reported as an error. Decode just the id, leniently.
+newtype CreatedEntry = CreatedEntry { ceId :: Maybe ConversationId }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON CreatedEntry where
+  parseJSON = withObject "CreatedEntry" $ \o -> CreatedEntry <$> o .:? "id"
+
+-- * Create a comment on a ticket
+
+-- | Request body for 'createComment'. @ccrContentType@ is "plainText" or "html";
+-- @ccrIsPublic@ False makes the comment private (agent-only).
+data CreateCommentRequest = CreateCommentRequest
+  { ccrContent :: !Text
+  , ccrContentType :: !Text
+  , ccrIsPublic :: !Bool
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON CreateCommentRequest where
+  toJSON = genericToJSON (Casing.aesonPrefix Casing.camelCase)
+
+-- | Build request for adding a comment to a ticket.
+createCommentRequest :: OrgId -> TicketId -> CreateCommentRequest -> Request
+createCommentRequest oid tid body =
+  ZO.prepareJSONPost (Common.mkApiEndpoint $ "/tickets/" <> toS tid <> "/comments") [] [Common.orgIdHeader oid] body
+
+-- | Add a comment to a ticket.
+-- POST /api/v1/tickets/{ticket_id}/comments
+-- OAuth Scope: Desk.tickets.UPDATE
+--
+-- The response is the created comment object; we decode it leniently as a 'CreatedEntry' (the create
+-- response may omit the @type@ key that a full 'ConversationEntry' decode requires).
+createComment :: forall m . (HasZoho m)
+              => OrgId
+              -> TicketId
+              -> CreateCommentRequest
+              -> m (Either Error CreatedEntry)
+createComment oid tid body =
+  ZM.runRequestAndParseResponse $ createCommentRequest oid tid body
+
+
+-- * Draft an email reply (unsent)
+
+-- | Request body for 'draftReply'. @drrChannel@ is the originating channel
+-- ("EMAIL", ...); @drrFromEmailAddress@ must be a from-address configured in the
+-- help-desk portal; @drrTo@/@drrContentType@ apply to the EMAIL channel.
+data DraftReplyRequest = DraftReplyRequest
+  { drrChannel :: !Text
+  , drrFromEmailAddress :: !Text
+  , drrTo :: !(Maybe Text)
+  , drrCc :: !(Maybe Text)
+  , drrBcc :: !(Maybe Text)
+  , drrContent :: !Text
+  , drrContentType :: !(Maybe Text)
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON DraftReplyRequest where
+  toJSON = genericToJSON (Casing.aesonPrefix Casing.camelCase){ omitNothingFields = True }
+
+-- | Build request for drafting an email reply (unsent).
+draftReplyRequest :: OrgId -> TicketId -> DraftReplyRequest -> Request
+draftReplyRequest oid tid body =
+  ZO.prepareJSONPost (Common.mkApiEndpoint $ "/tickets/" <> toS tid <> "/draftReply") [] [Common.orgIdHeader oid] body
+
+-- | Draft an email reply on a ticket. Creates an UNSENT draft (never sends to the
+-- customer); a human reviews and sends it from the Desk UI.
+-- POST /api/v1/tickets/{ticket_id}/draftReply
+-- OAuth Scope: Desk.tickets.UPDATE
+--
+-- The response is the created draft thread; we decode it leniently as a 'CreatedEntry' (the create
+-- response may omit the @type@ key that a full 'ConversationEntry' decode requires).
+draftReply :: forall m . (HasZoho m)
+           => OrgId
+           -> TicketId
+           -> DraftReplyRequest
+           -> m (Either Error CreatedEntry)
+draftReply oid tid body =
+  ZM.runRequestAndParseResponse $ draftReplyRequest oid tid body
