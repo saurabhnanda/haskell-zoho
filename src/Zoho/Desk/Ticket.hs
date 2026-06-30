@@ -24,6 +24,25 @@ import Data.String.Conv (toS)
 import Control.Monad (join)
 import Text.Read (readMaybe)
 
+-- | The assignee object embedded in a ticket response via @include=assignee@.
+-- A slim agent stub -- the GET /tickets payload returns only these fields -- kept
+-- separate from the heavyweight 'Zoho.Desk.Agent.Agent' so a ticket fetch does not
+-- pull a full agent record just for a name/email/photo.
+-- Fields are @asg@-prefixed (not @assignee@) so the generic lens for the ticket's own
+-- @ticketAssigneeId@ (abbreviated to @assigneeId@) does not collide with a field here.
+data Assignee = Assignee
+  { asgId        :: !(Maybe AgentId)
+  , asgFirstName :: !(Maybe Text)
+  , asgLastName  :: !(Maybe Text)
+  , asgEmail     :: !(Maybe Text)
+  , asgPhotoURL  :: !(Maybe Text)
+  } deriving (Eq, Show, Generic, EmptyZohoStructure)
+
+instance FromJSON Assignee where
+  parseJSON = genericParseJSON (zohoPrefix Casing.camelCase)
+instance ToJSON Assignee where
+  toJSON = genericToJSON (zohoPrefix Casing.camelCase)
+
 data TicketPoly stringInt ticketCf contactCf = Ticket
   { ticketId :: !(Maybe TicketId)
   , ticketTicketNumber :: !(Maybe Text)
@@ -39,6 +58,7 @@ data TicketPoly stringInt ticketCf contactCf = Ticket
   , ticketDescription :: !(Maybe Text)
   , ticketStatus :: !(Maybe Text)
   , ticketAssigneeId :: !(Maybe AgentId)
+  , ticketAssignee :: !(Maybe Assignee)   -- ^ embedded assignee object (via @include=assignee@); the bare id is 'ticketAssigneeId'
   , ticketCategory :: !(Maybe Text)
   , ticketSubCategory :: !(Maybe Text)
   , ticketResolution :: !(Maybe Text)
