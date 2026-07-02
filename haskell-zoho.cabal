@@ -49,6 +49,8 @@ library
       Zoho.Projects.Tasklist
       Zoho.Projects.Task
       Zoho.Projects.Tasklayout
+      Zoho.Projects.Comment
+      Zoho.Projects.Follower
       Zoho.CRM.Records
       Zoho.CRM.Common
       Zoho.CRM.Contacts
