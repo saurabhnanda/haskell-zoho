@@ -47,6 +47,25 @@ newtype TaskId = TaskId { rawTaskId :: Text }
 instance FromJSON TaskId where
   parseJSON v = TaskId <$> parseTextOrNumber v
 
+-- | A task-comment id (read-only, returned on comment creation). Same string|number
+-- leniency as the other Projects ids.
+newtype CommentId = CommentId { rawCommentId :: Text }
+  deriving (Eq, Show, Generic, Ord)
+  deriving (ToJSON) via Text
+
+instance FromJSON CommentId where
+  parseJSON v = CommentId <$> parseTextOrNumber v
+
+-- | A portal-specific user id ("ZPUID"), distinct from the global 'Zoho.Types.Zuid'.
+-- Zoho Projects uses it for the task @followers@ endpoint, which takes @zpuid@ -- NOT the
+-- global @zuid@ that owner-assignment (@owners_and_work.owners[{zuid}]@) uses.
+newtype Zpuid = Zpuid { rawZpuid :: Text }
+  deriving (Eq, Show, Generic, Ord)
+  deriving (ToJSON) via Text
+
+instance FromJSON Zpuid where
+  parseJSON v = Zpuid <$> parseTextOrNumber v
+
 -- | @https://projectsapi.zoho.com/api/v3/portal/{portalId}{path}@ -- the single base for
 -- all Projects endpoints (projects, tasklists, tasks).
 mkApiEndpoint :: PortalId -> BS.ByteString -> URI

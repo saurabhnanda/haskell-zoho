@@ -24,7 +24,7 @@ import Network.HTTP.Client (Request)
 import Zoho.Projects.Common (PortalId, ProjectId (..), TasklistId (..), TaskId (..), mkApiEndpoint)
 import qualified Zoho.OAuth as ZO
 import Zoho.Types (Error, Zuid (..), EmptyZohoStructure (..), unsafeMergeObjects)
-import Zoho.ZohoM as ZM (HasZoho, runRequestAndParseResponse)
+import Zoho.ZohoM as ZM (HasZoho, runRequestAndParseResponse, runRequestAndParseOptionalResponse)
 
 -- | A single owner reference inside @owners_and_work.owners@. Serializes to @{"zuid": ...}@.
 newtype OwnerRef = OwnerRef { ownerZuid :: Zuid }
@@ -137,3 +137,13 @@ getRequest portalId (ProjectId pid) (TaskId tid) =
 -- HTTP error).
 get :: forall m cf. (HasZoho m, FromJSON cf) => PortalId -> ProjectId -> TaskId -> m (Either Error (TaskPoly cf))
 get portalId projectId taskId = runRequestAndParseResponse (getRequest portalId projectId taskId)
+
+deleteRequest :: PortalId -> ProjectId -> TaskId -> Request
+deleteRequest portalId (ProjectId pid) (TaskId tid) =
+  ZO.prepareDelete (mkApiEndpoint portalId ("/projects/" <> toS pid <> "/tasks/" <> toS tid)) [] [] Nothing
+
+-- | Delete a task. Returns @()@ on success; the response body (a trivial status object, or an
+-- empty 204) is discarded.
+delete :: (HasZoho m) => PortalId -> ProjectId -> TaskId -> m (Either Error ())
+delete portalId projectId taskId =
+  runRequestAndParseOptionalResponse () (const () :: Value -> ()) (deleteRequest portalId projectId taskId)
