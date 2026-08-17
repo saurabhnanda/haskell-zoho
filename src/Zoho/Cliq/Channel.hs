@@ -31,6 +31,7 @@ module Zoho.Cliq.Channel
   , addMembersToChannel
   , getChannelMembers
   , removeMemberFromChannel
+  , deleteChannel
   ) where
 
 import Control.Lens.TH (abbreviatedFields, makeLensesWith)
@@ -71,7 +72,9 @@ instance ToJSON ChannelUniqueName where
 
 -- | A channel
 data Channel = Channel
-  { channelId :: !(Maybe ChannelId)
+  { channelChannelId :: !(Maybe ChannelId)  -- ^ JSON @channel_id@. Named with the doubled prefix so
+                                            -- @aesonPrefix@ (strips the leading @channel@ run) yields
+                                            -- @channel_id@, not @id@ -- mirrors 'createChannelId'.
   , channelName :: !(Maybe Text)
   , channelUniqueName :: !(Maybe Text)
   , channelDescription :: !(Maybe Text)
@@ -235,3 +238,17 @@ removeMemberFromChannel :: (ZM.HasZoho m)
                         -> m (Either Error ())
 removeMemberFromChannel chan uid =
   ZM.runRequestAndParseOptionalResponse () Prelude.id $ removeMemberFromChannelRequest chan uid
+
+-- | Delete a channel
+-- DELETE /api/v2/channels/{CHANNEL_ID}
+deleteChannelRequest :: ChannelId -> Request
+deleteChannelRequest (ChannelId cid) =
+  let endpoint = mkCliqEndpoint $ "/channels/" <> toS cid
+  in ZO.prepareDelete endpoint [] [] Nothing
+
+-- | Returns 204 No Content on success
+deleteChannel :: (ZM.HasZoho m)
+              => ChannelId
+              -> m (Either Error ())
+deleteChannel chan =
+  ZM.runRequestAndParseOptionalResponse () Prelude.id $ deleteChannelRequest chan
